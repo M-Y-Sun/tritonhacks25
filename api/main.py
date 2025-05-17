@@ -20,7 +20,7 @@ async def add_room (
         buildings[building] = {}
     if (not room in buildings[building]):
         buildings[building][room] = 0
-@app.get("/{building}/move/{room_enter}/{person_count}")
+@app.get("/{building}/enter/{room_enter}/{person_count}")
 async def update_full(
     building,
     room_enter,
@@ -32,17 +32,16 @@ async def update_full(
         room_enter,
         person_count
     )
-@app.get("/{building}/move/{room_enter}/{room_leave}/{person_count}")
+@app.get("/{building}/exit/{room_exit}/{person_count}")
 async def update_full(
     building,
-    room_leave,
-    room_enter,
+    room_exit,
     person_count
 ):
     return update_req(
         building,
-        room_leave,
-        room_enter,
+        room_exit,
+        '',
         person_count
     )
 def update_req(
@@ -54,13 +53,12 @@ def update_req(
     if (not building in buildings):
         buildings[building] = {}
     pcount = int(person_count)
-    if room_enter in buildings[building]:
-        buildings[building][room_enter] = buildings[building][room_enter] + pcount
-    else:
-        buildings[building][room_enter] = 0 + pcount
+    if room_enter != '':
+        if room_enter in buildings[building]:
+            buildings[building][room_enter] = buildings[building][room_enter] + pcount
+        else:
+            buildings[building][room_enter] = 0 + pcount
     if room_leave != '':
         buildings[building][room_leave] = max(buildings[building][room_leave] - pcount,0)
     print(buildings)
-    return {
-        "building": buildings[building][room_enter] 
-    }
+    return {}
