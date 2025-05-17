@@ -3,6 +3,7 @@ import make_requests
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ultralytics import YOLO
 from collections import deque
+import platform
 
 # === USER CONFIGURABLE SETTINGS ===
 LINE_X = 300                    # X position of the vertical line
@@ -168,6 +169,7 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 255), 2)
     cv2.putText(frame, f"Runners {ENTRANCE_SIDE}→{EXIT_SIDE}: {runner_count}", (10, 170),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
+<<<<<<< HEAD
     try:
         requests.update (
             enter_left,
@@ -177,6 +179,14 @@ while True:
         )
     except:
         pass
+=======
+    requester.update(
+        entered_left,
+        exited_left,
+        entered_right,
+        exited_right
+    )
+>>>>>>> b2e341d16def2df773d713f52d3f24d6440ac3fc
     # Show
     cv2.imshow("Real-Time Tracking", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
