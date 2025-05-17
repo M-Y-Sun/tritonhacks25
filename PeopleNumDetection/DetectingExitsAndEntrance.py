@@ -1,4 +1,5 @@
 import cv2
+import make_requests
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ultralytics import YOLO
 from collections import deque
@@ -40,7 +41,12 @@ id_active = set()
 id_entered_side = {}
 track_history = {}
 counted_runners = set()
-
+requester = make_requests.Request(
+    'proto_building',
+    'B240',
+    'hallway',
+    'B240-hallway-cam'
+)
 print("✅ Running real-time tracking. Press Q to quit.")
 
 while True:
@@ -143,7 +149,12 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 255), 2)
     cv2.putText(frame, f"Runners {ENTRANCE_SIDE}→{EXIT_SIDE}: {runner_count}", (10, 170),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-
+    requests.update (
+        enter_left,
+        exit_left,
+        enter_right,
+        exit_right
+    )
     # Show
     cv2.imshow("Real-Time Tracking", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
