@@ -9,8 +9,11 @@ class Request:
         self.room_right = room_right
         self.server = server
         self.cam = cam
-        requests.get(f"{server}/{building}/add/{room_left}")
-        requests.get(f"{server}/{building}/add/{room_right}")
+        try: 
+            requests.get(f"{server}/{building}/add/{room_left}")
+            requests.get(f"{server}/{building}/add/{room_right}")
+        except:
+            pass
     def update (
         self,
         enter_left,
