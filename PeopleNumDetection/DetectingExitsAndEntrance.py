@@ -3,6 +3,7 @@ import make_requests
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ultralytics import YOLO
 from collections import deque
+import platform
 
 # === USER CONFIGURABLE SETTINGS ===
 LINE_X = 300                    # X position of the vertical line
@@ -15,15 +16,34 @@ SPEED_THRESHOLD = 15           # Speed threshold in pixels/frame for runners
 model = YOLO('yolov8n.pt')
 tracker = DeepSort(max_age=30)
 
+# Camera setup with platform-specific settings
+def setup_camera():
+    if platform.system() == 'Darwin':  # macOS
+        # Try different camera indices
+        for index in range(2):
+            cap = cv2.VideoCapture(index)
+            if cap.isOpened():
+                # Set camera properties
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                # Attempt to read a frame to verify camera works
+                ret, _ = cap.read()
+                if ret:
+                    return cap
+                cap.release()
+        print("❌ Could not find a working camera.")
+        exit()
+    else:
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        if not cap.isOpened():
+            print("❌ Could not access webcam.")
+            exit()
+        return cap
 
-# Open webcam
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
-if not cap.isOpened():
-    print("❌ Could not access webcam.")
-    exit()
+# Open camera
+cap = setup_camera()
 
 # Try to get FPS
 FPS = cap.get(cv2.CAP_PROP_FPS)
@@ -149,11 +169,11 @@ while True:
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 255), 2)
     cv2.putText(frame, f"Runners {ENTRANCE_SIDE}→{EXIT_SIDE}: {runner_count}", (10, 170),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-    requests.update (
-        enter_left,
-        exit_left,
-        enter_right,
-        exit_right
+    requester.update(
+        entered_left,
+        exited_left,
+        entered_right,
+        exited_right
     )
     # Show
     cv2.imshow("Real-Time Tracking", frame)
