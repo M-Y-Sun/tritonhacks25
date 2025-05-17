@@ -15,15 +15,34 @@ SPEED_THRESHOLD = 15           # Speed threshold in pixels/frame for runners
 model = YOLO('yolov8n.pt')
 tracker = DeepSort(max_age=30)
 
+# Camera setup with platform-specific settings
+def setup_camera():
+    if platform.system() == 'Darwin':  # macOS
+        # Try different camera indices
+        for index in range(2):
+            cap = cv2.VideoCapture(index)
+            if cap.isOpened():
+                # Set camera properties
+                cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+                cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+                # Attempt to read a frame to verify camera works
+                ret, _ = cap.read()
+                if ret:
+                    return cap
+                cap.release()
+        print("❌ Could not find a working camera.")
+        exit()
+    else:
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
+        if not cap.isOpened():
+            print("❌ Could not access webcam.")
+            exit()
+        return cap
 
-# Open webcam
-cap = cv2.VideoCapture(0)
-cap.set(cv2.CAP_PROP_FRAME_WIDTH, 1280)
-cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 720)
-
-if not cap.isOpened():
-    print("❌ Could not access webcam.")
-    exit()
+# Open camera
+cap = setup_camera()
 
 # Try to get FPS
 FPS = cap.get(cv2.CAP_PROP_FPS)
