@@ -1,19 +1,43 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from typing import Dict, Optional, Any
+from dispatch.tw_call import call as twilio_call
+from dotenv import load_dotenv
+import os
+import datetime
+import sys
+
+# Load environment variables
+load_dotenv()
+
+# Add the parent directory of 'api' to the Python path
+# This is to ensure that 'dispatch' can be found
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from logger import logger
 
 app = FastAPI()
 
-# Add CORS middleware
+# CORS Configuration
+# Origins that are allowed to make cross-origin requests.
+# You might want to restrict this to your frontend's URL in production.
+origins = [
+    "http://localhost",        # For local development if frontend is served from root
+    "http://localhost:3000",   # Common port for React dev server
+    "http://localhost:3001",   # Another common port
+    "http://localhost:5173",   # Common port for Vite dev server
+    # Add other origins if necessary
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with your frontend URL
+    allow_origins=origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_headers=["*"],  # Allows all headers
 )
 
 # Buildings data structure
@@ -31,7 +55,7 @@ class EmergencyReport(BaseModel):
     building: str
     message: str
     location: Optional[LocationData] = None
-    timestamp: str
+    timestamp: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
 
 @app.get("/{building}/feed", response_class=HTMLResponse)
 async def feed(building):
@@ -117,11 +141,22 @@ def update_req(building, room_leave, room_enter, person_count):
 
 @app.post("/submit-emergency")
 async def submit_emergency(report: EmergencyReport):
-    """Submit an emergency report"""
-    emergency_reports.append(report.dict())
-    print(f"Emergency report received: {report}")
-    # In a real app, this would trigger notifications, alerts, etc.
-    return {"success": True, "report_id": len(emergency_reports)}
+    logger.info(f"Received emergency report: {report.model_dump_json()}")
+    
+    # Construct a message for Twilio. You might want to customize this further.
+    full_message = f"Emergency at {report.school}, building {report.building}. Message: {report.message}"
+    if report.location:
+        full_message += f". Location: lat {report.location.latitude}, lon {report.location.longitude}"
+        
+    try:
+        # Call the Twilio function
+        # Ensure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are set as environment variables
+        twilio_call(text=full_message)
+        logger.info("Twilio call initiated successfully.")
+        return {"status": "Emergency report submitted and call initiated"}
+    except Exception as e:
+        logger.error(f"Error initiating Twilio call: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to initiate call: {str(e)}")
 
 @app.get("/emergency-reports")
 async def get_emergency_reports():
@@ -129,4 +164,22 @@ async def get_emergency_reports():
     return emergency_reports
 
 # Mount the static files directory for serving the React frontend
-app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="static")
+app.mount("/static", StaticFiles(directory="../frontend/public"), name="static")
+
+# Mount the frontend build directory as the root
+app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")
+
+if __name__ == "__main__":
+    import uvicorn
+    # Ensure environment variables are loaded if you're using a .env file
+    # from dotenv import load_dotenv
+    # load_dotenv()
+    
+    # Check if Twilio credentials are set
+    if not os.getenv("TWILIO_ACCOUNT_SID") or not os.getenv("TWILIO_AUTH_TOKEN"):
+        print("ERROR: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables must be set.")
+        # logger.error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables must be set.")
+        # sys.exit(1) # Exit if credentials are not set
+
+    uvicorn.run(app, host="0.0.0.0", port=8000)
+

@@ -75,10 +75,11 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
     if (!message.trim()) return;
     
     setIsSubmitting(true);
+    console.log('Submitting emergency report with data:', { school, building, message, location, timestamp: new Date().toISOString() });
     
     try {
       // Send the emergency report
-      await fetch('/submit-emergency', {
+      const response = await fetch('http://localhost:8000/submit-emergency', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -94,10 +95,30 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
           timestamp: new Date().toISOString()
         }),
       });
-      
-      setIsSubmitted(true);
-    } catch (error) {
-      console.error('Error submitting emergency:', error);
+
+      console.log('Fetch response status:', response.status);
+      if (response.ok) {
+        const responseData = await response.json(); // Assuming backend sends JSON response
+        console.log('Emergency report submitted successfully:', responseData);
+        setIsSubmitted(true);
+      } else {
+        // Read the response body as text first
+        const errorBodyText = await response.text();
+        let errorData;
+        try {
+          // Try to parse the text as JSON
+          errorData = JSON.parse(errorBodyText);
+        } catch (e) {
+          // If parsing fails, use the raw text as the error data
+          errorData = errorBodyText;
+        }
+        console.error('Error submitting emergency: Server responded with status', response.status, errorData);
+        alert(`Error submitting report: ${response.status} - ${typeof errorData === 'string' ? errorData : JSON.stringify(errorData)}`);
+      }
+    } catch (error: any) {
+      console.error('Network error or other issue submitting emergency:', error);
+      // Optionally, set an error message state here to display to the user
+      alert(`Network error or other issue: ${error.message}`);
     } finally {
       setIsSubmitting(false);
     }

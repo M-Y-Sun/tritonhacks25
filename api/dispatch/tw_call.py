@@ -26,7 +26,3 @@ def call(text: str, caller="+15413488156", reciever="+18586884297"):
     )
 
     logger.info("SID: " + (call.sid or "None"))
-
-
-if __name__ == "__main__":
-    call("This is a test hello from twilio. There is a fire.")
