@@ -33,10 +33,7 @@ app = FastAPI()
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:3000",
-        "http://localhost:5173",
-    ],  # Add your frontend URL
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "http://127.0.0.1:3000"],  # Add all frontend URLs
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
@@ -585,6 +582,47 @@ async def get_talking_points():
         "location": location_info,
         "occupancy_count": current_count,
         "talking_points": talking_points,
+    }
+
+<<<<<<< HEAD
+
+||||||| parent of cf60b05 (add video stream transfer from client to server in /connect)
+=======
+
+@app.get("/connect", response_class=HTMLResponse)
+async def connect_serve():
+    return Path("../frontend/public/connect.html").read_text()
+
+
+class DataURLResponse(BaseModel):
+    data: str
+
+
+frames = [MatLike]
+# i: int = 0
+
+
+@app.post("/connect")
+async def connect_recv(dataurl: DataURLResponse):
+    # global i
+
+    # print("------BEGIN DATA URL------")
+    # print(dataurl.data)
+    # print("------------END------------")
+
+    response = urlopen(dataurl.data)
+
+    # with open(f"test-imgs/buf{i}.png", "wb") as f:
+    with open("test-imgs/buf.png", "wb") as f:
+        f.write(response.file.read())
+
+    # i += 1
+
+    # logger.info(f"Parsed URL; wrote to file `buf{i}.png'")
+    logger.info("Parsed URL; wrote to file `buf.png'")
+
+    return {
+        "status": "Connect POST request received: base64 Data URL",
     }
 
 
