@@ -30,7 +30,7 @@ from logger import logger
 app = FastAPI()
 
 # --- Configuration ---
-PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://https://10b3-69-196-42-186.ngrok-free.app/")
 # Construct paths relative to the current file's directory (api/)
 CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
 STATIC_FILES_DIR = os.path.join(CURRENT_DIR, "static_files")
@@ -228,7 +228,7 @@ async def submit_voice_emergency(
         logger.info(f"Audio file saved: {file_path}")
         
         # Construct the public URL for the audio file
-        audio_url = f"http://localhost:8000/static_files/audio/{unique_filename}"
+        audio_url = f"http://https://10b3-69-196-42-186.ngrok-free.app/static_files/audio/{unique_filename}"
         
     except Exception as e:
         logger.error(f"Error saving audio file: {e}")
