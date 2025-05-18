@@ -5,7 +5,8 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict, Optional, Any
-from dispatch.tw_call import call as twilio_call, call_with_audio_message
+from dispatch.tw_call import call as twilio_call
+from dispatch.tw_call import call_with_audio_message
 from dotenv import load_dotenv
 import os
 import datetime
@@ -42,14 +43,14 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Add your frontend URL
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "*"],  # Added wildcard for ngrok
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods
-    allow_headers=["*"],  # Allows all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
-# Mount for backend-specific static files (e.g., uploaded audio)
-app.mount("/api_backend_static", StaticFiles(directory=STATIC_FILES_DIR), name="api_backend_static")
+# Mount static files directory with name="static_files" for consistency
+app.mount("/static_files", StaticFiles(directory=STATIC_FILES_DIR), name="static_files")
 
 # Global variables for stream management
 stream_active = False
@@ -212,26 +213,28 @@ async def submit_voice_emergency(
 ):
     logger.info(f"Received voice emergency report for School: {school}, Building: {building}")
     
-    # Generate a unique filename, preserving original extension (e.g. .webm or .wav)
+    # Generate a unique filename
     original_filename = file.filename or "audio_message"
     file_extension = os.path.splitext(original_filename)[1]
-    if not file_extension: # Default to .wav if no extension
-        file_extension = ".wav"
+    if not file_extension:
+        file_extension = ".wav"  # Default to .wav if no extension
     unique_filename = f"{uuid.uuid4()}{file_extension}"
     file_path = os.path.join(AUDIO_DIR, unique_filename)
     
     try:
+        # Save the file
         with open(file_path, "wb") as buffer:
             shutil.copyfileobj(file.file, buffer)
         logger.info(f"Audio file saved: {file_path}")
+        
+        # Construct the public URL for the audio file
+        audio_url = f"http://localhost:8000/static_files/audio/{unique_filename}"
+        
     except Exception as e:
         logger.error(f"Error saving audio file: {e}")
         raise HTTPException(status_code=500, detail="Could not save audio file.")
     finally:
         await file.close()
-
-    public_audio_url = f"{PUBLIC_BASE_URL}/api_backend_static/audio/{unique_filename}"
-    logger.info(f"Public audio URL: {public_audio_url}")
 
     # Get building count
     building_room_count = 0
@@ -240,31 +243,32 @@ async def submit_voice_emergency(
     tracker_count = max(0, tracker.entered_count - tracker.exited_count)
     total_count = max(building_room_count, tracker_count)
 
-    # Prepare location and building info text for Twilio
-    location_info_str: Optional[str] = None
+    # Prepare location and building info text
+    location_info = None
     if latitude is not None and longitude is not None:
-        location_info_str = f"User is at or near latitude {latitude:.6f}, longitude {longitude:.6f}."
+        location_info = f"The emergency location coordinates are: latitude {latitude:.6f}, longitude {longitude:.6f}"
     
-    building_info_text = f"The emergency is at {school}, building {building}. Current person count estimate is {total_count}."
+    building_info = f"Emergency reported at {school}, {building} building. There are currently {total_count} people in the building."
 
     try:
-        call_with_audio_message(
-            audio_url=public_audio_url,
-            location_text=location_info_str,
-            building_info_text=building_info_text
+        # Make the Twilio call with the local audio file
+        call_sid = call_with_audio_message(
+            audio_url=audio_url,
+            location_text=location_info,
+            building_info_text=building_info
         )
-        logger.info("Twilio call with audio initiated successfully.")
+        logger.info(f"Twilio call initiated successfully with SID: {call_sid}")
         
-        
-        # For now, just return success similar to text submission
         return {
             "status": "Voice emergency report submitted and call initiated",
-            "building_count": total_count
+            "building_count": total_count,
+            "call_sid": call_sid,
+            "audio_url": audio_url
         }
     except Exception as e:
         logger.error(f"Error initiating Twilio call with audio: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to initiate call with audio: {str(e)}")
-
+    
 @app.get("/emergency-reports")
 async def get_emergency_reports():
     """Get all emergency reports (admin only endpoint)"""

@@ -40,7 +40,6 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // Request location access when component mounts
@@ -142,23 +141,15 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
           if (event.data.size > 0) {
             setAudioChunks((prev) => [...prev, event.data]);
           }
-          // Silence detection: reset timeout if data comes in
-          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-          silenceTimeoutRef.current = setTimeout(stopRecordingAndSend, 1500);
         };
 
         recorder.onstop = () => {
           // Stop all tracks on the stream to turn off mic indicator
           stream.getTracks().forEach(track => track.stop());
-          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-          // actual sending is now handled by stopRecordingAndSend or explicitly by button
         };
         
-        recorder.start(); // Start recording
+        recorder.start(100); // Collect data every 100ms for smoother chunks
         setIsRecording(true);
-        // Initial silence timeout when recording starts
-        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = setTimeout(stopRecordingAndSend, 1500);
 
       } catch (err) {
         console.error('Error accessing microphone or starting recording:', err);
@@ -171,21 +162,26 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
   };
 
   const stopRecordingAndSend = async () => {
-    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
-      mediaRecorderRef.current.stop();
+    if (!mediaRecorderRef.current || mediaRecorderRef.current.state !== 'recording') {
+      setVoiceError('No active recording to stop.');
+      return;
     }
+
+    mediaRecorderRef.current.stop();
     setIsRecording(false);
-    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+
+    // Wait a brief moment for the final chunks to be processed
+    await new Promise(resolve => setTimeout(resolve, 100));
 
     if (audioChunks.length === 0) {
       setVoiceError('No audio recorded. Please try again.');
-      return; // Don't submit if no audio was captured
+      return;
     }
 
     setIsSubmitting(true);
     setVoiceError(null);
     
-    const mimeType = mediaRecorderRef.current?.mimeType || 'audio/wav';
+    const mimeType = mediaRecorderRef.current.mimeType;
     const fileExtension = mimeType.includes('webm') ? '.webm' : '.wav';
     const audioBlob = new Blob(audioChunks, { type: mimeType });
     const formData = new FormData();
@@ -203,7 +199,7 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
     try {
       const response = await fetch('http://localhost:8000/submit-voice-emergency', {
         method: 'POST',
-        body: formData, // No 'Content-Type' header needed for FormData, browser sets it
+        body: formData,
       });
 
       if (response.ok) {
@@ -217,15 +213,12 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
         try { errorData = JSON.parse(errorBodyText); } catch (e) { errorData = errorBodyText; }
         console.error('Error submitting voice emergency:', response.status, errorData);
         setVoiceError(`Error submitting voice report: ${response.status} - ${typeof errorData === 'string' ? errorData : JSON.stringify(errorData)}`);
-        // Don't set isSubmitted to true on error
       }
     } catch (error: any) {
       console.error('Network error or other issue submitting voice emergency:', error);
       setVoiceError(`Network error or other issue submitting voice report: ${error.message}`);
     } finally {
       setIsSubmitting(false);
-      // Do not clear audioChunks here if submission failed and user might want to retry with same audio.
-      // However, for this flow, we clear it as they'd typically re-record.
       if(!isSubmitted) setAudioChunks([]); 
     }
   };
@@ -421,8 +414,8 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
               ) : (
                 <Button 
                   onClick={stopRecordingAndSend} 
-                  disabled={isSubmitting} // isSubmitting will be true if auto-stopped & sending
-                  className="w-full bg-yellow-500 hover:bg-yellow-600"
+                  disabled={isSubmitting}
+                  className="w-full bg-red-500 hover:bg-red-600 animate-pulse"
                 >
                   {isSubmitting ? "Sending Voice..." : "Stop & Send Voice Report"}
                 </Button>
@@ -432,8 +425,8 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
             <Button 
               onClick={() => {
                 setIsSubmitted(false);
-                setMessage(''); // Clear text message
-                setAudioChunks([]); // Clear any residual audio chunks
+                setMessage('');
+                setAudioChunks([]);
                 setVoiceError(null);
               }}
               className="w-full"
