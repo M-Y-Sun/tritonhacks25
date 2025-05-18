@@ -1,11 +1,11 @@
 import cv2
-from fastapi import FastAPI, Request, HTTPException, UploadFile, File, WebSocket
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, Form
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from typing import Dict, Optional, Any
-from dispatch.tw_call import call as twilio_call
+from dispatch.tw_call import call as twilio_call, call_with_audio_message
 from dotenv import load_dotenv
 import os
 import datetime
@@ -14,6 +14,8 @@ from DetectingExitsAndEntrance import DoorPersonTracker
 import numpy as np
 import asyncio
 from io import BytesIO
+import uuid
+import shutil
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +28,17 @@ from logger import logger
 
 app = FastAPI()
 
+# --- Configuration ---
+PUBLIC_BASE_URL = os.getenv("PUBLIC_BASE_URL", "http://localhost:8000")
+# Construct paths relative to the current file's directory (api/)
+CURRENT_DIR = os.path.dirname(os.path.abspath(__file__))
+STATIC_FILES_DIR = os.path.join(CURRENT_DIR, "static_files")
+AUDIO_DIR = os.path.join(STATIC_FILES_DIR, "audio")
+
+# Ensure static audio directory exists
+os.makedirs(AUDIO_DIR, exist_ok=True)
+# --- End Configuration ---
+
 # CORS Configuration
 app.add_middleware(
     CORSMiddleware,
@@ -34,6 +47,9 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# Mount for backend-specific static files (e.g., uploaded audio)
+app.mount("/api_backend_static", StaticFiles(directory=STATIC_FILES_DIR), name="api_backend_static")
 
 # Global variables for stream management
 stream_active = False
@@ -152,7 +168,7 @@ def update_req(building, room_leave, room_enter, person_count):
 
 @app.post("/submit-emergency")
 async def submit_emergency(report: EmergencyReport):
-    logger.info(f"Received emergency report: {report.model_dump_json()}")
+    logger.info(f"Received text emergency report: {report.model_dump_json()}")
     
     # Get the current count of people in the building if available
     building_count = 0
@@ -166,15 +182,15 @@ async def submit_emergency(report: EmergencyReport):
     total_count = max(building_count, tracker_count)
     
     # Construct a message for Twilio
-    full_message = f"Emergency at {report.school}, building {report.building} with {total_count} people in it. Message: {report.message}"
+    full_message = f"Emergency at {report.school}, building {report.building}. Current person count estimate is {total_count}. User message: {report.message}"
     if report.location:
-        full_message += f". Location: lat {report.location.latitude}, lon {report.location.longitude}"
+        full_message += f". Location: latitude {report.location.latitude}, longitude {report.location.longitude}"
+    else:
+        full_message += ". Location not provided."
         
     try:
-        logger.info(f"Number of people using the main door: {tracker.entered_count - tracker.exited_count}")
-        # Call the Twilio function
         twilio_call(text=full_message)
-        logger.info("Twilio call initiated successfully.")
+        logger.info("Twilio call initiated successfully for text report.")
         
         # Store the emergency report
         emergency_reports.append(report)
@@ -184,8 +200,73 @@ async def submit_emergency(report: EmergencyReport):
             "building_count": total_count
         }
     except Exception as e:
-        logger.error(f"Error initiating Twilio call: {e}")
+        logger.error(f"Error initiating Twilio call for text report: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to initiate call: {str(e)}")
+
+@app.post("/submit-voice-emergency")
+async def submit_voice_emergency(
+    school: str = Form(...),
+    building: str = Form(...),
+    latitude: Optional[float] = Form(None),
+    longitude: Optional[float] = Form(None),
+    file: UploadFile = File(...)
+):
+    logger.info(f"Received voice emergency report for School: {school}, Building: {building}")
+    
+    # Generate a unique filename, preserving original extension (e.g. .webm or .wav)
+    original_filename = file.filename or "audio_message"
+    file_extension = os.path.splitext(original_filename)[1]
+    if not file_extension: # Default to .wav if no extension
+        file_extension = ".wav"
+    unique_filename = f"{uuid.uuid4()}{file_extension}"
+    file_path = os.path.join(AUDIO_DIR, unique_filename)
+    
+    try:
+        with open(file_path, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+        logger.info(f"Audio file saved: {file_path}")
+    except Exception as e:
+        logger.error(f"Error saving audio file: {e}")
+        raise HTTPException(status_code=500, detail="Could not save audio file.")
+    finally:
+        await file.close()
+
+    public_audio_url = f"{PUBLIC_BASE_URL}/api_backend_static/audio/{unique_filename}"
+    logger.info(f"Public audio URL: {public_audio_url}")
+
+    # Get building count
+    building_room_count = 0
+    if building in buildings:
+        building_room_count = sum(buildings[building].values())
+    tracker_count = max(0, tracker.entered_count - tracker.exited_count)
+    total_count = max(building_room_count, tracker_count)
+
+    # Prepare location and building info text for Twilio
+    location_info_str: Optional[str] = None
+    if latitude is not None and longitude is not None:
+        location_info_str = f"User is at or near latitude {latitude:.6f}, longitude {longitude:.6f}."
+    
+    building_info_text = f"The emergency is at {school}, building {building}. Current person count estimate is {total_count}."
+
+    try:
+        call_with_audio_message(
+            audio_url=public_audio_url,
+            location_text=location_info_str,
+            building_info_text=building_info_text
+        )
+        logger.info("Twilio call with audio initiated successfully.")
+        
+        # Optionally, store a record of this voice emergency if needed
+        # For now, just return success similar to text submission
+        return {
+            "status": "Voice emergency report submitted and call initiated",
+            "building_count": total_count
+        }
+    except Exception as e:
+        logger.error(f"Error initiating Twilio call with audio: {e}")
+        # Potentially clean up the saved audio file if the call fails catastrophically
+        # os.remove(file_path) 
+        raise HTTPException(status_code=500, detail=f"Failed to initiate call with audio: {str(e)}")
 
 @app.get("/emergency-reports")
 async def get_emergency_reports():
@@ -399,57 +480,6 @@ async def video_feed():
         generate_frames(),
         media_type="multipart/x-mixed-replace; boundary=frame"
     )
-
-# Mount the static files directory for serving the React frontend
-app.mount("/static", StaticFiles(directory="../frontend/public"), name="static")
-
-# Mount the frontend build directory as the root
-app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")
-
-# Add this new WebSocket endpoint
-@app.websocket("/ws")
-async def websocket_endpoint(websocket: WebSocket):
-    await websocket.accept()
-    try:
-        while True:
-            # Receive the image as bytes
-            data = await websocket.receive_bytes()
-            
-            # Convert bytes to numpy array
-            nparr = np.frombuffer(data, np.uint8)
-            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
-            
-            # Process the frame using the existing tracker
-            tracker.process_frame(img)
-            
-            # Calculate the number of people
-            if tracker.entered_count - tracker.exited_count < 0:
-                current_count = 0
-            else:
-                current_count = tracker.entered_count - tracker.exited_count
-            
-            # Send back the count
-            await websocket.send_json({
-                "numberOfPeople": current_count
-            })
-            
-    except Exception as e:
-        print(f"WebSocket error: {e}")
-    finally:
-        await websocket.close()
-
-if __name__ == "__main__":
-    import uvicorn
-    # Ensure environment variables are loaded if you're using a .env file
-    # from dotenv import load_dotenv
-    # load_dotenv()
-    
-    # Check if Twilio credentials are set
-    if not os.getenv("TWILIO_ACCOUNT_SID") or not os.getenv("TWILIO_AUTH_TOKEN"):
-        print("WARNING: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables not set")
-    
-    uvicorn.run(app, host="0.0.0.0", port=8000)
-
 @app.post("/process-image/")
 async def process_image(file: UploadFile = File(...)):
     contents = await file.read()  # read bytes
@@ -474,4 +504,54 @@ async def process_image(file: UploadFile = File(...)):
         "numberOfPeople": final
     }
 
+@app.get("/current-count")
+async def get_current_count():
+    """Get the current count of people from the tracker"""
+    if tracker is not None:
+        current_count = max(0, tracker.entered_count - tracker.exited_count)
+    else:
+        current_count = 0
+    
+    return {"count": current_count}
+
+@app.get("/get-talking-points")
+async def get_talking_points(school: str, building: str):
+    """Get suggested talking points for emergency reporting"""
+    # Get current building count
+    current_count = 0
+    if tracker is not None:
+        current_count = max(0, tracker.entered_count - tracker.exited_count)
+    
+    # Structure the talking points
+    talking_points = {
+        "location_info": f"{school}, {building} Building",
+        "occupancy": current_count,
+        "suggested_points": [
+            "State if this is a life-threatening emergency",
+            "Describe any immediate dangers (fire, active threat, medical)",
+            "Mention if anyone is injured and their condition",
+            "Specify your exact location within the building",
+            "Note any special hazards or access issues"
+        ]
+    }
+    
+    return talking_points
+
+# Mount the static files directory for serving the React frontend
+app.mount("/static", StaticFiles(directory="../frontend/public"), name="static_frontend")
+
+# Mount the frontend build directory as the root
+app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend_root")
+
+if __name__ == "__main__":
+    import uvicorn
+    # Ensure environment variables are loaded if you're using a .env file
+    # from dotenv import load_dotenv
+    # load_dotenv()
+    
+    # Check if Twilio credentials are set
+    if not os.getenv("TWILIO_ACCOUNT_SID") or not os.getenv("TWILIO_AUTH_TOKEN"):
+        print("WARNING: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables not set")
+    
+    uvicorn.run(app, host="0.0.0.0", port=8000)
 

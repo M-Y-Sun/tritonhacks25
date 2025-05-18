@@ -26,63 +26,102 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
   const [step, setStep] = useState<OnboardingStep>('welcome');
   const [school, setSchool] = useState('');
   const [building, setBuilding] = useState('');
+  const [direction, setDirection] = useState(1); // 1 for forward, -1 for backward
   
-  const handleContinue = () => {
-    if (step === 'welcome') {
+  const handleBack = () => {
+    setDirection(-1);
+    if (step === 'building') {
       setStep('school');
-    } else if (step === 'school' && school) {
-      setStep('building');
-    } else if (step === 'building' && building) {
-      setStep('complete');
-      onComplete({ school, building });
+      setBuilding('');
+    } else if (step === 'school') {
+      setStep('welcome');
+      setSchool('');
     }
   };
 
+  const handleForward = (nextStep: OnboardingStep) => {
+    setDirection(1);
+    setStep(nextStep);
+  };
+
   const slideVariants = {
-    enter: {
-      x: '100%',
+    enter: (direction: number) => ({
+      x: direction > 0 ? '100%' : '-100%',
       opacity: 0,
-    },
+    }),
     center: {
       x: 0,
       opacity: 1,
     },
-    exit: {
-      x: '-100%',
+    exit: (direction: number) => ({
+      x: direction > 0 ? '-100%' : '100%',
       opacity: 0,
+    }),
+  };
+
+  const buttonVariants = {
+    hover: {
+      scale: 1.02,
+      transition: {
+        duration: 0.2,
+        ease: 'easeInOut',
+      },
+    },
+    tap: {
+      scale: 0.98,
+      transition: {
+        duration: 0.1,
+      },
+    },
+    initial: {
+      scale: 1,
     },
   };
 
   return (
-    <AnimatePresence mode="wait">
+    <AnimatePresence mode="wait" custom={direction}>
       {step === 'welcome' && (
         <motion.div
           key="welcome"
+          custom={direction}
           initial="enter"
           animate="center"
           exit="exit"
           variants={slideVariants}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="w-full max-w-2xl mx-auto"
+          className="w-full max-w-lg mx-auto"
         >
-          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-8">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-4">
             <CardHeader>
-              <CardTitle className="text-5xl font-bold text-center text-primary">Welcome</CardTitle>
-              <CardDescription className="text-center text-xl mt-4">
+              <CardTitle className="text-4xl font-bold text-center text-primary">Welcome</CardTitle>
+              <CardDescription className="text-center text-lg mt-2">
                 Campus Emergency Response System
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col items-center py-8">
-              <p className="text-center mb-8 text-lg max-w-xl">
+            <CardContent className="flex flex-col items-center py-4">
+              <p className="text-center mb-4 text-base max-w-md">
                 This system will help you quickly report emergencies on campus. 
                 Our AI-powered system will dispatch the appropriate response team.
               </p>
-              <div className="h-64 w-64 rounded-full bg-primary/30 flex items-center justify-center mb-8">
-                <span className="text-8xl">🚨</span>
+              <div className="h-32 w-32 rounded-full bg-primary/30 flex items-center justify-center mb-4">
+                <span className="text-6xl">🚨</span>
               </div>
             </CardContent>
             <CardFooter className="flex justify-center">
-              <Button onClick={handleContinue} className="w-full text-lg py-6">Continue</Button>
+              <motion.div
+                className="w-full"
+                variants={buttonVariants}
+                initial="initial"
+                whileHover="hover"
+                whileTap="tap"
+              >
+                <Button 
+                  onClick={() => handleForward('school')} 
+                  className="w-full text-base py-4 transition-colors hover:bg-purple-600"
+                >
+                  Get Started
+                </Button>
+              </motion.div>
             </CardFooter>
           </Card>
           
@@ -90,15 +129,22 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-8 text-center"
+            className="mt-4 text-center"
           >
             <Link to="/video-feed" className="block">
-              <Button
-                variant="outline"
-                className="w-full text-lg py-6"
+              <motion.div
+                variants={buttonVariants}
+                initial="initial"
+                whileHover="hover"
+                whileTap="tap"
               >
-                Go to Video Surveillance Feed
-              </Button>
+                <Button
+                  variant="outline"
+                  className="w-full text-base py-4 transition-colors hover:bg-purple-600 hover:text-white"
+                >
+                  Go to Video Surveillance Feed
+                </Button>
+              </motion.div>
             </Link>
           </motion.div>
         </motion.div>
@@ -107,52 +153,61 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
       {step === 'school' && (
         <motion.div
           key="school"
+          custom={direction}
           initial="enter"
           animate="center"
           exit="exit"
           variants={slideVariants}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="w-full max-w-2xl mx-auto"
+          className="w-full max-w-lg mx-auto"
         >
-          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-8">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-4">
             <CardHeader>
-              <CardTitle className="text-4xl font-bold text-primary">Select Your School</CardTitle>
-              <CardDescription className="text-xl mt-4">
+              <CardTitle className="text-3xl font-bold text-primary">Select Your School</CardTitle>
+              <CardDescription className="text-lg mt-2">
                 Please select your school from the options below
               </CardDescription>
             </CardHeader>
-            <CardContent className="py-8 space-y-4">
-              <Button 
-                variant={school === 'ucsd' ? 'default' : 'outline'}
-                className="w-full text-lg py-6"
-                onClick={() => {
-                  setSchool('ucsd');
-                  handleContinue();
-                }}
-              >
-                UCSD
-              </Button>
-              <Button 
-                variant={school === 'stanford' ? 'default' : 'outline'}
-                className="w-full text-lg py-6"
-                onClick={() => {
-                  setSchool('stanford');
-                  handleContinue();
-                }}
-              >
-                Stanford
-              </Button>
-              <Button 
-                variant={school === 'cmu' ? 'default' : 'outline'}
-                className="w-full text-lg py-6"
-                onClick={() => {
-                  setSchool('cmu');
-                  handleContinue();
-                }}
-              >
-                CMU
-              </Button>
+            <CardContent className="py-4 space-y-3">
+              {['ucsd', 'stanford', 'cmu'].map((schoolOption) => (
+                <motion.div
+                  key={schoolOption}
+                  variants={buttonVariants}
+                  initial="initial"
+                  whileHover="hover"
+                  whileTap="tap"
+                >
+                  <Button 
+                    variant={school === schoolOption ? 'default' : 'outline'}
+                    className={`w-full text-base py-4 transition-colors ${
+                      school === schoolOption ? '' : 'hover:bg-purple-600 hover:text-white'
+                    }`}
+                    onClick={() => {
+                      setSchool(schoolOption);
+                      handleForward('building');
+                    }}
+                  >
+                    {schoolOption.toUpperCase()}
+                  </Button>
+                </motion.div>
+              ))}
             </CardContent>
+            <CardFooter className="flex justify-start">
+              <motion.div
+                variants={buttonVariants}
+                initial="initial"
+                whileHover="hover"
+                whileTap="tap"
+              >
+                <Button 
+                  variant="ghost" 
+                  onClick={handleBack}
+                  className="text-sm transition-colors hover:bg-purple-600 hover:text-white"
+                >
+                  ← Back
+                </Button>
+              </motion.div>
+            </CardFooter>
           </Card>
         </motion.div>
       )}
@@ -160,52 +215,65 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
       {step === 'building' && (
         <motion.div
           key="building"
+          custom={direction}
           initial="enter"
           animate="center"
           exit="exit"
           variants={slideVariants}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="w-full max-w-2xl mx-auto"
+          className="w-full max-w-lg mx-auto"
         >
-          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-8">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-4">
             <CardHeader>
-              <CardTitle className="text-4xl font-bold text-primary">Select Building</CardTitle>
-              <CardDescription className="text-xl mt-4">
+              <CardTitle className="text-3xl font-bold text-primary">Select Building</CardTitle>
+              <CardDescription className="text-lg mt-2">
                 Please select the building you are in
               </CardDescription>
             </CardHeader>
-            <CardContent className="py-8 space-y-4">
-              <Button 
-                variant={building === 'hdci' ? 'default' : 'outline'}
-                className="w-full text-lg py-6"
-                onClick={() => {
-                  setBuilding('hdci');
-                  handleContinue();
-                }}
-              >
-                HDCI
-              </Button>
-              <Button 
-                variant={building === 'cse' ? 'default' : 'outline'}
-                className="w-full text-lg py-6"
-                onClick={() => {
-                  setBuilding('cse');
-                  handleContinue();
-                }}
-              >
-                CSE
-              </Button>
-              <Button 
-                variant={building === 'warren' ? 'default' : 'outline'}
-                className="w-full text-lg py-6"
-                onClick={() => {
-                  setBuilding('warren');
-                  handleContinue();
-                }}
-              >
-                Warren
-              </Button>
+            <CardContent className="py-4 space-y-3">
+              {[
+                { id: 'hdci', label: 'HDCI' },
+                { id: 'cse', label: 'CSE' },
+                { id: 'warren', label: 'Warren' }
+              ].map((buildingOption) => (
+                <motion.div
+                  key={buildingOption.id}
+                  variants={buttonVariants}
+                  initial="initial"
+                  whileHover="hover"
+                  whileTap="tap"
+                >
+                  <Button 
+                    variant={building === buildingOption.id ? 'default' : 'outline'}
+                    className={`w-full text-base py-4 transition-colors ${
+                      building === buildingOption.id ? '' : 'hover:bg-purple-600 hover:text-white'
+                    }`}
+                    onClick={() => {
+                      setBuilding(buildingOption.id);
+                      onComplete({ school, building: buildingOption.id });
+                    }}
+                  >
+                    {buildingOption.label}
+                  </Button>
+                </motion.div>
+              ))}
             </CardContent>
+            <CardFooter className="flex justify-start">
+              <motion.div
+                variants={buttonVariants}
+                initial="initial"
+                whileHover="hover"
+                whileTap="tap"
+              >
+                <Button 
+                  variant="ghost" 
+                  onClick={handleBack}
+                  className="text-sm transition-colors hover:bg-purple-600 hover:text-white"
+                >
+                  ← Back
+                </Button>
+              </motion.div>
+            </CardFooter>
           </Card>
         </motion.div>
       )}

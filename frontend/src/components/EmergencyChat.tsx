@@ -20,17 +20,6 @@ interface BuildingStats {
   count: number;
 }
 
-interface LocationData {
-  latitude: number;
-  longitude: number;
-}
-
-interface VoiceChatResponse {
-  transcript: string;
-  response_text: string;
-  audio: string; // base64 encoded audio
-}
-
 interface TalkingPoints {
   location_info: string;
   occupancy: number;
@@ -46,19 +35,13 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
   const [talkingPoints, setTalkingPoints] = useState<TalkingPoints | null>(null);
   const [isLoadingTalkingPoints, setIsLoadingTalkingPoints] = useState(false);
   const [isTalkingPointsVisible, setIsTalkingPointsVisible] = useState(false);
-  
-  // Voice chat state
+
+  // For voice recording
   const [isRecording, setIsRecording] = useState(false);
   const [audioChunks, setAudioChunks] = useState<Blob[]>([]);
-  const [userTranscript, setUserTranscript] = useState('');
-  const [aiResponse, setAiResponse] = useState('');
-  const [isProcessingAudio, setIsProcessingAudio] = useState(false);
-  
-  // Refs
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const streamRef = useRef<MediaStream | null>(null);
-  const silenceTimeoutRef = useRef<number | null>(null);
-  const lastAudioTimeRef = useRef<number>(Date.now());
+  const silenceTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const [voiceError, setVoiceError] = useState<string | null>(null);
 
   // Request location access when component mounts
   useEffect(() => {
@@ -69,6 +52,7 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
         },
         (error) => {
           console.error('Error getting location:', error);
+          // User might deny location, which is fine
         }
       );
     }
@@ -87,144 +71,19 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
         console.error('Error fetching count:', error);
       }
     };
-
-    // Fetch immediately
-    fetchCount();
-
-    // Then fetch every 2 seconds
-    const interval = setInterval(fetchCount, 2000);
-
-    return () => clearInterval(interval);
+    fetchCount(); // Fetch immediately
+    const interval = setInterval(fetchCount, 2000); // Then fetch every 2 seconds
+    return () => clearInterval(interval); // Cleanup interval on unmount
   }, []);
 
-  // Audio recording effect
-  useEffect(() => {
-    // Clean up function to stop recording and release media stream
-    const cleanupRecording = () => {
-      if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
-        mediaRecorderRef.current.stop();
-      }
-      
-      if (streamRef.current) {
-        streamRef.current.getTracks().forEach(track => track.stop());
-        streamRef.current = null;
-      }
-      
-      if (silenceTimeoutRef.current) {
-        window.clearTimeout(silenceTimeoutRef.current);
-        silenceTimeoutRef.current = null;
-      }
-    };
-
-    // Start recording when isRecording becomes true
-    if (isRecording) {
-      navigator.mediaDevices.getUserMedia({ audio: true })
-        .then(stream => {
-          streamRef.current = stream;
-          const mediaRecorder = new MediaRecorder(stream);
-          mediaRecorderRef.current = mediaRecorder;
-          
-          // Reset audio chunks
-          setAudioChunks([]);
-          
-          // Handle audio data
-          mediaRecorder.ondataavailable = (event) => {
-            if (event.data.size > 0) {
-              setAudioChunks(prev => [...prev, event.data]);
-              lastAudioTimeRef.current = Date.now();
-              
-              // Reset silence timeout on new audio
-              if (silenceTimeoutRef.current) {
-                window.clearTimeout(silenceTimeoutRef.current);
-              }
-              
-              // Set new silence timeout - stop after 1.5s of silence
-              silenceTimeoutRef.current = window.setTimeout(() => {
-                if (isRecording) {
-                  setIsRecording(false);
-                }
-              }, 1500);
-            }
-          };
-          
-          // Start recording
-          mediaRecorder.start(100); // Collect data every 100ms
-        })
-        .catch(error => {
-          console.error('Error accessing microphone:', error);
-          setIsRecording(false);
-        });
-    } 
-    // Handle cleanup when recording stops
-    else if (audioChunks.length > 0) {
-      sendAudioToBackend();
-    }
-
-    // Cleanup on unmount or when recording state changes
-    return cleanupRecording;
-  }, [isRecording]);
-
-  const sendAudioToBackend = async () => {
-    if (audioChunks.length === 0) return;
-    
-    setIsProcessingAudio(true);
-    
-    try {
-      // Create blob from audio chunks
-      const audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
-      
-      // Create FormData and append audio
-      const formData = new FormData();
-      formData.append('file', audioBlob, 'recording.webm');
-      formData.append('school', school);
-      formData.append('building', building);
-      
-      if (location) {
-        formData.append('latitude', location.latitude.toString());
-        formData.append('longitude', location.longitude.toString());
-      }
-      
-      // Send to backend
-      const response = await fetch('http://localhost:8000/voice-chat', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (response.ok) {
-        const data: VoiceChatResponse = await response.json();
-        
-        // Display transcript and response
-        setUserTranscript(data.transcript);
-        setAiResponse(data.response_text);
-        
-        // Play audio response
-        if (data.audio) {
-          const audio = new Audio(`data:audio/wav;base64,${data.audio}`);
-          audio.play();
-        }
-      } else {
-        console.error('Error processing voice:', await response.text());
-      }
-    } catch (error) {
-      console.error('Error sending audio to backend:', error);
-    } finally {
-      setIsProcessingAudio(false);
-      setAudioChunks([]);
-    }
-  };
-
-  const toggleRecording = () => {
-    setIsRecording(prevState => !prevState);
-  };
-
-  const handleSubmit = async () => {
+  const handleTextSubmit = async () => {
     if (!message.trim()) return;
     
     setIsSubmitting(true);
-    console.log('Submitting emergency report with data:', { school, building, message, location, timestamp: new Date().toISOString() });
+    setVoiceError(null);
+    console.log('Submitting TEXT emergency report with data:', { school, building, message, location, timestamp: new Date().toISOString() });
     
     try {
-      // Send the emergency report
       const response = await fetch('http://localhost:8000/submit-emergency', {
         method: 'POST',
         headers: {
@@ -242,28 +101,132 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
         }),
       });
 
-      console.log('Fetch response status:', response.status);
       if (response.ok) {
         const responseData = await response.json();
-        console.log('Emergency report submitted successfully:', responseData);
         setBuildingStats({ count: responseData.building_count });
         setIsSubmitted(true);
       } else {
         const errorBodyText = await response.text();
         let errorData;
-        try {
-          errorData = JSON.parse(errorBodyText);
-        } catch (e) {
-          errorData = errorBodyText;
-        }
-        console.error('Error submitting emergency: Server responded with status', response.status, errorData);
-        alert(`Error submitting report: ${response.status} - ${typeof errorData === 'string' ? errorData : JSON.stringify(errorData)}`);
+        try { errorData = JSON.parse(errorBodyText); } catch (e) { errorData = errorBodyText; }
+        console.error('Error submitting text emergency:', response.status, errorData);
+        alert(`Error submitting text report: ${response.status} - ${typeof errorData === 'string' ? errorData : JSON.stringify(errorData)}`);
       }
     } catch (error: any) {
-      console.error('Network error or other issue submitting emergency:', error);
+      console.error('Network error or other issue submitting text emergency:', error);
       alert(`Network error or other issue: ${error.message}`);
     } finally {
       setIsSubmitting(false);
+    }
+  };
+
+  const startRecording = async () => {
+    setVoiceError(null);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        let mimeType = 'audio/wav';
+        if (!MediaRecorder.isTypeSupported(mimeType)) {
+          mimeType = 'audio/webm'; // Fallback
+          if (!MediaRecorder.isTypeSupported(mimeType)) {
+            setVoiceError('Neither WAV nor WebM recording is supported by your browser.');
+            return;
+          }
+        }
+        
+        const recorder = new MediaRecorder(stream, { mimeType });
+        mediaRecorderRef.current = recorder;
+        setAudioChunks([]); // Clear previous chunks
+
+        recorder.ondataavailable = (event) => {
+          if (event.data.size > 0) {
+            setAudioChunks((prev) => [...prev, event.data]);
+          }
+          // Silence detection: reset timeout if data comes in
+          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+          silenceTimeoutRef.current = setTimeout(stopRecordingAndSend, 1500);
+        };
+
+        recorder.onstop = () => {
+          // Stop all tracks on the stream to turn off mic indicator
+          stream.getTracks().forEach(track => track.stop());
+          if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+          // actual sending is now handled by stopRecordingAndSend or explicitly by button
+        };
+        
+        recorder.start(); // Start recording
+        setIsRecording(true);
+        // Initial silence timeout when recording starts
+        if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+        silenceTimeoutRef.current = setTimeout(stopRecordingAndSend, 1500);
+
+      } catch (err) {
+        console.error('Error accessing microphone or starting recording:', err);
+        setVoiceError('Could not access microphone. Please check permissions.');
+        setIsRecording(false);
+      }
+    } else {
+      setVoiceError('Audio recording is not supported by your browser.');
+    }
+  };
+
+  const stopRecordingAndSend = async () => {
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state === 'recording') {
+      mediaRecorderRef.current.stop();
+    }
+    setIsRecording(false);
+    if (silenceTimeoutRef.current) clearTimeout(silenceTimeoutRef.current);
+
+    if (audioChunks.length === 0) {
+      setVoiceError('No audio recorded. Please try again.');
+      return; // Don't submit if no audio was captured
+    }
+
+    setIsSubmitting(true);
+    setVoiceError(null);
+    
+    const mimeType = mediaRecorderRef.current?.mimeType || 'audio/wav';
+    const fileExtension = mimeType.includes('webm') ? '.webm' : '.wav';
+    const audioBlob = new Blob(audioChunks, { type: mimeType });
+    const formData = new FormData();
+
+    formData.append('school', school);
+    formData.append('building', building);
+    if (location) {
+      formData.append('latitude', location.latitude.toString());
+      formData.append('longitude', location.longitude.toString());
+    }
+    formData.append('file', audioBlob, `emergency_audio${fileExtension}`);
+
+    console.log('Submitting VOICE emergency report...');
+
+    try {
+      const response = await fetch('http://localhost:8000/submit-voice-emergency', {
+        method: 'POST',
+        body: formData, // No 'Content-Type' header needed for FormData, browser sets it
+      });
+
+      if (response.ok) {
+        const responseData = await response.json();
+        setBuildingStats({ count: responseData.building_count });
+        setIsSubmitted(true);
+        setAudioChunks([]); // Clear chunks after successful submission
+      } else {
+        const errorBodyText = await response.text();
+        let errorData;
+        try { errorData = JSON.parse(errorBodyText); } catch (e) { errorData = errorBodyText; }
+        console.error('Error submitting voice emergency:', response.status, errorData);
+        setVoiceError(`Error submitting voice report: ${response.status} - ${typeof errorData === 'string' ? errorData : JSON.stringify(errorData)}`);
+        // Don't set isSubmitted to true on error
+      }
+    } catch (error: any) {
+      console.error('Network error or other issue submitting voice emergency:', error);
+      setVoiceError(`Network error or other issue submitting voice report: ${error.message}`);
+    } finally {
+      setIsSubmitting(false);
+      // Do not clear audioChunks here if submission failed and user might want to retry with same audio.
+      // However, for this flow, we clear it as they'd typically re-record.
+      if(!isSubmitted) setAudioChunks([]); 
     }
   };
 
@@ -297,15 +260,15 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="w-full max-w-[90%] md:max-w-6xl mx-auto"
+      className="w-full max-w-md md:max-w-2xl lg:max-w-4xl mx-auto"
     >
       <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20">
         <CardHeader>
-          <CardTitle className="text-3xl font-bold text-primary">Emergency Report</CardTitle>
+          <CardTitle className="text-2xl font-bold text-primary">Emergency Report</CardTitle>
           <CardDescription>
             {school} - {building}
           </CardDescription>
-          <div className="flex flex-wrap gap-2 text-sm mt-2">
+          <div className="flex justify-between text-sm mt-2">
             <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
               👥 People in building: {buildingStats.count}
             </div>
@@ -319,130 +282,112 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
         <CardContent>
           {!isSubmitted ? (
             <>
-              <div className="mb-4 md:grid md:grid-cols-2 md:gap-6">
-                <div className="space-y-4">
-                  <Button
-                    onClick={handleTalkingPointsClick}
-                    disabled={isLoadingTalkingPoints}
-                    className="w-full bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
-                  >
-                    {isLoadingTalkingPoints ? (
-                      "Loading..."
-                    ) : (
-                      <>
-                        {talkingPoints ? (
-                          <>
-                            {isTalkingPointsVisible ? "Hide" : "Show"} Talking Points
-                            <motion.span
-                              animate={{ rotate: isTalkingPointsVisible ? 180 : 0 }}
-                              transition={{ duration: 0.3 }}
-                              className="text-xl"
-                            >
-                              ▼
-                            </motion.span>
-                          </>
-                        ) : (
-                          "Tell me What to Say"
-                        )}
-                      </>
-                    )}
-                  </Button>
-
-                  <AnimatePresence>
-                    {talkingPoints && isTalkingPointsVisible && (
-                      <motion.div
-                        initial={{ opacity: 0, height: 0, scale: 0.95, transformOrigin: "top" }}
-                        animate={{ 
-                          opacity: 1, 
-                          height: "auto", 
-                          scale: 1,
-                          transition: {
-                            height: { duration: 0.3 },
-                            opacity: { duration: 0.2 },
-                            scale: { duration: 0.2 }
-                          }
-                        }}
-                        exit={{ 
-                          opacity: 0, 
-                          height: 0, 
-                          scale: 0.95,
-                          transition: {
-                            height: { duration: 0.3 },
-                            opacity: { duration: 0.2 },
-                            scale: { duration: 0.2 }
-                          }
-                        }}
-                        className="overflow-hidden"
-                      >
-                        <motion.div
-                          initial={{ y: -20 }}
-                          animate={{ y: 0 }}
-                          exit={{ y: -20 }}
-                          className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200"
-                        >
-                          <h3 className="font-semibold mb-2">Suggested Talking Points:</h3>
-                          <p className="text-sm mb-2">
-                            <span className="font-medium">Location:</span> {talkingPoints.location_info}
-                          </p>
-                          <p className="text-sm mb-2">
-                            <span className="font-medium">Current Occupancy:</span> {talkingPoints.occupancy} people
-                          </p>
-                          <ul className="list-disc list-inside text-sm space-y-1">
-                            {talkingPoints.suggested_points.map((point, index) => (
-                              <motion.li
-                                key={index}
-                                initial={{ opacity: 0, x: -20 }}
-                                animate={{ opacity: 1, x: 0 }}
-                                exit={{ opacity: 0, x: -20 }}
-                                transition={{ delay: index * 0.1 }}
-                                className="text-gray-700"
-                              >
-                                {point}
-                              </motion.li>
-                            ))}
-                          </ul>
-                        </motion.div>
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-
-                  <p className="text-base">
-                    Please briefly describe the emergency situation. This will be sent to an AI-powered 911 operator for dispatch.
-                  </p>
-                </div>
-
-                <div className="space-y-4">
-                  <Textarea
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Describe the emergency situation here..."
-                    className="h-full min-h-[200px]"
-                    disabled={isSubmitting || isRecording || isProcessingAudio}
-                  />
-                  {!location && (
-                    <p className="mt-2 text-amber-600 text-sm">
-                      ⚠️ Please allow location access for faster response
-                    </p>
+              <div className="mb-4">
+                <Button
+                  onClick={handleTalkingPointsClick}
+                  disabled={isLoadingTalkingPoints}
+                  className="w-full mb-4 bg-blue-600 hover:bg-blue-700 flex items-center justify-center gap-2"
+                >
+                  {isLoadingTalkingPoints ? (
+                    "Loading..."
+                  ) : (
+                    <>
+                      {talkingPoints ? (
+                        <>
+                          {isTalkingPointsVisible ? "Hide" : "Show"} What to Say
+                          <motion.span
+                            animate={{ rotate: isTalkingPointsVisible ? 180 : 0 }}
+                            transition={{ duration: 0.3 }}
+                            className="text-xl"
+                          >
+                            ▼
+                          </motion.span>
+                        </>
+                      ) : (
+                        "What Should I Say?"
+                      )}
+                    </>
                   )}
-                </div>
+                </Button>
+
+                <AnimatePresence>
+                  {talkingPoints && isTalkingPointsVisible && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0, scale: 0.95 }}
+                      animate={{ 
+                        opacity: 1, 
+                        height: "auto", 
+                        scale: 1,
+                        transition: {
+                          height: { duration: 0.3 },
+                          opacity: { duration: 0.2 },
+                          scale: { duration: 0.2 }
+                        }
+                      }}
+                      exit={{ 
+                        opacity: 0, 
+                        height: 0, 
+                        scale: 0.95,
+                        transition: {
+                          height: { duration: 0.3 },
+                          opacity: { duration: 0.2 },
+                          scale: { duration: 0.2 }
+                        }
+                      }}
+                      style={{ transformOrigin: 'top' }}
+                      className="overflow-hidden"
+                    >
+                      <motion.div
+                        initial={{ y: -20 }}
+                        animate={{ y: 0 }}
+                        exit={{ y: -20 }}
+                        className="mb-4 p-4 bg-blue-50 rounded-lg border border-blue-200"
+                      >
+                        <h3 className="font-semibold mb-2">Suggested Talking Points:</h3>
+                        <p className="text-sm mb-2">
+                          <span className="font-medium">Location:</span> {talkingPoints.location_info}
+                        </p>
+                        <p className="text-sm mb-2">
+                          <span className="font-medium">Current Occupancy:</span> {talkingPoints.occupancy} people
+                        </p>
+                        <ul className="list-disc list-inside text-sm space-y-1">
+                          {talkingPoints.suggested_points.map((point, index) => (
+                            <motion.li
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              exit={{ opacity: 0, x: -20 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="text-gray-700"
+                            >
+                              {point}
+                            </motion.li>
+                          ))}
+                        </ul>
+                      </motion.div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+
+                <p className="mb-4">
+                  Please briefly describe the emergency situation. This will be sent to an AI-powered 911 operator for dispatch.
+                </p>
               </div>
 
-              {/* Voice chat UI */}
-              {(userTranscript || aiResponse) && (
-                <div className="mt-4 p-4 bg-background/80 rounded-lg border border-border/50 md:grid md:grid-cols-2 md:gap-4">
-                  {userTranscript && (
-                    <div className="mb-2 md:mb-0">
-                      <p className="text-sm font-medium text-primary">You said:</p>
-                      <p className="text-sm">{userTranscript}</p>
-                    </div>
-                  )}
-                  {aiResponse && (
-                    <div>
-                      <p className="text-sm font-medium text-green-600">Dispatcher:</p>
-                      <p className="text-sm">{aiResponse}</p>
-                    </div>
-                  )}
-                </div>
+              <Textarea
+                value={message}
+                onChange={(e) => setMessage(e.target.value)}
+                placeholder="Describe the emergency situation here..."
+                className="h-24 mb-4"
+                disabled={isSubmitting || isRecording}
+              />
+              {!location && (
+                <p className="mt-2 text-amber-600 text-sm mb-2">
+                  ⚠️ Please allow location access for faster response.
+                </p>
+              )}
+              {voiceError && (
+                <p className="text-red-500 text-sm mb-2">Error: {voiceError}</p>
               )}
             </>
           ) : (
@@ -450,38 +395,47 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
               <div className="text-green-600 text-5xl mb-4">✓</div>
               <h3 className="text-xl font-medium mb-2">Report Submitted</h3>
               <p>
-                Your emergency has been reported. Help is on the way.
+                Your emergency report has been received. Help is being dispatched.
               </p>
             </div>
           )}
         </CardContent>
-        <CardFooter className="flex flex-col md:flex-row gap-2">
+        <CardFooter className="flex flex-col space-y-2">
           {!isSubmitted ? (
             <>
               <Button 
-                onClick={handleSubmit} 
-                disabled={!message.trim() || isSubmitting || isRecording || isProcessingAudio}
+                onClick={handleTextSubmit} 
+                disabled={!message.trim() || isSubmitting || isRecording}
                 className="w-full bg-red-600 hover:bg-red-700"
               >
-                {isSubmitting ? "Submitting..." : "Submit Emergency Report"}
+                {isSubmitting && !isRecording ? "Submitting Text..." : "Submit Text Report"}
               </Button>
-              
-              <Button
-                onClick={toggleRecording}
-                disabled={isSubmitting || isProcessingAudio}
-                className={`w-full ${isRecording ? 'bg-red-500 animate-pulse' : 'bg-blue-600 hover:bg-blue-700'}`}
-                type="button"
-              >
-                {isRecording 
-                  ? "Stop Recording (auto-stops after 1.5s silence)" 
-                  : isProcessingAudio 
-                    ? "Processing your voice..." 
-                    : "Talk to 911 Dispatcher"}
-              </Button>
+              {!isRecording ? (
+                <Button 
+                  onClick={startRecording}
+                  disabled={isSubmitting}
+                  className="w-full bg-blue-600 hover:bg-blue-700"
+                >
+                  Start Voice Report
+                </Button>
+              ) : (
+                <Button 
+                  onClick={stopRecordingAndSend} 
+                  disabled={isSubmitting} // isSubmitting will be true if auto-stopped & sending
+                  className="w-full bg-yellow-500 hover:bg-yellow-600"
+                >
+                  {isSubmitting ? "Sending Voice..." : "Stop & Send Voice Report"}
+                </Button>
+              )}
             </>
           ) : (
             <Button 
-              onClick={() => setIsSubmitted(false)}
+              onClick={() => {
+                setIsSubmitted(false);
+                setMessage(''); // Clear text message
+                setAudioChunks([]); // Clear any residual audio chunks
+                setVoiceError(null);
+              }}
               className="w-full"
             >
               Submit Another Report

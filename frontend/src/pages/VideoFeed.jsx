@@ -9,19 +9,11 @@ import {
   CardHeader,
   CardTitle,
 } from '../components/ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '../components/ui/select';
 
 function VideoFeed() {
   const [university, setUniversity] = useState('');
   const [building, setBuilding] = useState('');
   const [isStreaming, setIsStreaming] = useState(false);
-  const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [streamKey, setStreamKey] = useState(0);
 
@@ -61,8 +53,7 @@ function VideoFeed() {
         },
         body: JSON.stringify({
           university,
-          building,
-          message
+          building
         }),
       });
 
@@ -105,32 +96,6 @@ function VideoFeed() {
     }
   };
 
-  const handleMessageSubmit = async () => {
-    if (!message) return;
-
-    try {
-      const response = await fetch('http://localhost:8000/update_message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        credentials: 'include',
-        body: JSON.stringify({ message }),
-      });
-
-      if (response.ok) {
-        setMessage('');
-      } else {
-        const errorData = await response.json();
-        setError(errorData.detail || 'Failed to update message');
-      }
-    } catch (err) {
-      console.error(err);
-      setError('Failed to update message');
-    }
-  };
-
   return (
     <div className="container mx-auto p-4">
       <motion.div
@@ -147,52 +112,71 @@ function VideoFeed() {
               Monitor and track building occupancy
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <Select value={university} onValueChange={setUniversity}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select University" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ucsd">UCSD</SelectItem>
-                  <SelectItem value="stanford">Stanford</SelectItem>
-                  <SelectItem value="cmu">CMU</SelectItem>
-                </SelectContent>
-              </Select>
+          <CardContent className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Select University</h3>
+                <div className="space-y-2">
+                  <Button 
+                    variant={university === 'ucsd' ? 'default' : 'outline'}
+                    className="w-full"
+                    onClick={() => setUniversity('ucsd')}
+                  >
+                    UCSD
+                  </Button>
+                  <Button 
+                    variant={university === 'stanford' ? 'default' : 'outline'}
+                    className="w-full"
+                    onClick={() => setUniversity('stanford')}
+                  >
+                    Stanford
+                  </Button>
+                  <Button 
+                    variant={university === 'cmu' ? 'default' : 'outline'}
+                    className="w-full"
+                    onClick={() => setUniversity('cmu')}
+                  >
+                    CMU
+                  </Button>
+                </div>
+              </div>
 
-              <Select value={building} onValueChange={setBuilding}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select Building" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hdci">HDCI</SelectItem>
-                  <SelectItem value="cse">CSE</SelectItem>
-                  <SelectItem value="warren">Warren</SelectItem>
-                </SelectContent>
-              </Select>
+              <div className="space-y-2">
+                <h3 className="text-lg font-medium">Select Building</h3>
+                <div className="space-y-2">
+                  <Button 
+                    variant={building === 'hdci' ? 'default' : 'outline'}
+                    className="w-full"
+                    onClick={() => setBuilding('hdci')}
+                  >
+                    HDCI
+                  </Button>
+                  <Button 
+                    variant={building === 'cse' ? 'default' : 'outline'}
+                    className="w-full"
+                    onClick={() => setBuilding('cse')}
+                  >
+                    CSE
+                  </Button>
+                  <Button 
+                    variant={building === 'warren' ? 'default' : 'outline'}
+                    className="w-full"
+                    onClick={() => setBuilding('warren')}
+                  >
+                    Warren
+                  </Button>
+                </div>
+              </div>
             </div>
 
             {isStreaming && (
-              <div className="space-y-4">
-                <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-primary/20">
-                  <img
-                    key={streamKey}
-                    src={`http://localhost:8000/video_feed?t=${streamKey}`}
-                    alt="Live Feed"
-                    className="w-full h-full object-contain"
-                  />
-                </div>
-
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={message}
-                    onChange={(e) => setMessage(e.target.value)}
-                    placeholder="Enter emergency message..."
-                    className="flex-1 px-3 py-2 rounded border border-gray-300"
-                  />
-                  <Button onClick={handleMessageSubmit}>Send Message</Button>
-                </div>
+              <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-primary/20">
+                <img
+                  key={streamKey}
+                  src={`http://localhost:8000/video_feed?t=${streamKey}`}
+                  alt="Live Feed"
+                  className="w-full h-full object-contain"
+                />
               </div>
             )}
 
@@ -204,6 +188,7 @@ function VideoFeed() {
             <Button
               onClick={isStreaming ? handleStopStream : handleStartStream}
               className="w-full max-w-xs"
+              disabled={!university || !building}
             >
               {isStreaming ? 'Stop Stream' : 'Start Stream'}
             </Button>
