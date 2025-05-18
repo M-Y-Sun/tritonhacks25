@@ -23,6 +23,7 @@ function VideoFeed() {
   const [isStreaming, setIsStreaming] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
+  const [streamKey, setStreamKey] = useState(0);
 
   useEffect(() => {
     return () => {
@@ -47,6 +48,11 @@ function VideoFeed() {
     try {
       setError('');
       
+      if (isStreaming) {
+        await handleStopStream();
+        await new Promise(resolve => setTimeout(resolve, 1000));
+      }
+      
       const response = await fetch('http://localhost:8000/start_stream', {
         method: 'POST',
         headers: {
@@ -63,15 +69,11 @@ function VideoFeed() {
       const data = await response.json();
 
       if (response.ok) {
+        setStreamKey(prev => prev + 1);
         setIsStreaming(true);
         setError('');
       } else {
-        if (response.status === 400 && data.detail === "Stream already active") {
-          await handleStopStream();
-          setTimeout(() => handleStartStream(), 1000);
-        } else {
-          setError(data.detail || 'Failed to start stream');
-        }
+        setError(data.detail || 'Failed to start stream');
       }
     } catch (err) {
       setError('Failed to connect to server');
@@ -174,7 +176,8 @@ function VideoFeed() {
               <div className="space-y-4">
                 <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-primary/20">
                   <img
-                    src="http://localhost:8000/video_feed"
+                    key={streamKey}
+                    src={`http://localhost:8000/video_feed?t=${streamKey}`}
                     alt="Live Feed"
                     className="w-full h-full object-contain"
                   />

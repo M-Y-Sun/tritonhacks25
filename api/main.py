@@ -115,7 +115,7 @@ async def building_stats(building):
     # For now, we're estimating exited count
     # In a real app, you would track this from DetectingExitsAndEntrance.py
     return {
-        "entered": final,
+        "entered": total_people,
         "exited": 0  # Placeholder for actual exit count
     }
 
@@ -154,17 +154,35 @@ def update_req(building, room_leave, room_enter, person_count):
 async def submit_emergency(report: EmergencyReport):
     logger.info(f"Received emergency report: {report.model_dump_json()}")
     
-    # Construct a message for Twilio. You might want to customize this further.
-    full_message = f"Emergency of {final} at {report.school}, building {report.building} with {final} people in it. Message: {report.message}"
+    # Get the current count of people in the building if available
+    building_count = 0
+    if report.building in buildings:
+        building_count = sum(buildings[report.building].values())
+    
+    # Get the count from the tracker as well
+    tracker_count = max(0, tracker.entered_count - tracker.exited_count)
+    
+    # Use the larger of the two counts
+    total_count = max(building_count, tracker_count)
+    
+    # Construct a message for Twilio
+    full_message = f"Emergency at {report.school}, building {report.building} with {total_count} people in it. Message: {report.message}"
     if report.location:
         full_message += f". Location: lat {report.location.latitude}, lon {report.location.longitude}"
         
     try:
+        logger.info(f"Number of people using the main door: {tracker.entered_count - tracker.exited_count}")
         # Call the Twilio function
-        # Ensure TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN are set as environment variables
         twilio_call(text=full_message)
         logger.info("Twilio call initiated successfully.")
-        return {"status": "Emergency report submitted and call initiated"}
+        
+        # Store the emergency report
+        emergency_reports.append(report)
+        
+        return {
+            "status": "Emergency report submitted and call initiated",
+            "building_count": total_count
+        }
     except Exception as e:
         logger.error(f"Error initiating Twilio call: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to initiate call: {str(e)}")
@@ -258,6 +276,10 @@ def get_frame():
 
 async def generate_frames():
     while stream_active:
+        if video_capture is None or not video_capture.isOpened():
+            await asyncio.sleep(0.1)
+            continue
+            
         frame = get_frame()
         if frame is None:
             await asyncio.sleep(0.1)
@@ -271,7 +293,7 @@ async def generate_frames():
         yield (b'--frame\r\n'
                b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
         
-        await asyncio.sleep(0.1)  # Control frame rate
+        await asyncio.sleep(0.033)  # ~30 FPS
 
 def cleanup_stream():
     global stream_active, video_capture, current_message, current_university, current_building
@@ -285,40 +307,66 @@ def cleanup_stream():
 
 @app.post("/start_stream")
 async def start_stream(settings: StreamSettings):
-    global stream_active, video_capture, current_university, current_building, current_message
+    global stream_active, current_message, current_university, current_building, video_capture, tracker
+    
+    # First ensure any existing stream is fully cleaned up
+    await stop_stream()
     
     try:
-        if stream_active:
-            # If stream is active but video capture is None, clean up first
-            if video_capture is None or not video_capture.isOpened():
-                cleanup_stream()
-            else:
-                raise HTTPException(status_code=400, detail="Stream already active")
+        # Reset tracker state
+        tracker.reset()
         
+        # Initialize video capture
         video_capture = cv2.VideoCapture(0)
         if not video_capture.isOpened():
-            cleanup_stream()
             raise HTTPException(status_code=500, detail="Could not open video capture")
+        
+        # Set video capture properties to ensure fresh start
+        video_capture.set(cv2.CAP_PROP_BUFFERSIZE, 1)
+        video_capture.set(cv2.CAP_PROP_FPS, 30)
+        
+        # Clear a few frames to flush any old data
+        for _ in range(5):
+            video_capture.read()
         
         stream_active = True
         current_university = settings.university
         current_building = settings.building
         if settings.message:
             current_message = settings.message
-        
+            
         return {"status": "Stream started"}
     except Exception as e:
-        cleanup_stream()
-        if isinstance(e, HTTPException):
-            raise e
+        if video_capture:
+            video_capture.release()
+        stream_active = False
+        current_message = ""
+        current_university = ""
+        current_building = ""
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/stop_stream")
 async def stop_stream():
-    global stream_active, video_capture
+    global stream_active, video_capture, tracker, current_message, current_university, current_building
     
     try:
-        cleanup_stream()
+        # Reset tracker state
+        tracker.reset()
+        
+        # Release and cleanup video capture
+        if video_capture:
+            video_capture.release()
+        video_capture = None
+        
+        # Reset all stream-related variables
+        stream_active = False
+        current_message = ""
+        current_university = ""
+        current_building = ""
+        
+        # Small delay to ensure cleanup is complete
+        await asyncio.sleep(0.1)
+        
         return {"status": "Stream stopped"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

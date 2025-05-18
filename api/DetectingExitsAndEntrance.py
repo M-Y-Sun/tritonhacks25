@@ -6,13 +6,18 @@ from collections import deque
 
 class DoorPersonTracker:
     def __init__(self, person_model_path='yolov8n.pt', door_model_path='runs/detect/train10/weights/best.pt', fps=30):
-        
-        
-        self.person_model = YOLO(person_model_path)
-        self.door_model = YOLO(door_model_path)
+        self.person_model_path = person_model_path
+        self.door_model_path = door_model_path
+        self.fps = fps
+        self.reset()
+
+    def reset(self):
+        """Reset all tracking state variables"""
+        self.person_model = YOLO(self.person_model_path)
+        self.door_model = YOLO(self.door_model_path)
         self.tracker = DeepSort(max_age=30)
 
-        self.FPS = fps
+        self.FPS = self.fps
         self.frame_count = 0
 
         self.door_found = False

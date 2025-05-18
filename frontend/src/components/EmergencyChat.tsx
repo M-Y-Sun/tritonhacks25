@@ -17,8 +17,7 @@ interface EmergencyChatProps {
 }
 
 interface BuildingStats {
-  entered: number;
-  exited: number;
+  count: number;
 }
 
 interface LocationData {
@@ -29,7 +28,7 @@ interface LocationData {
 const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
   const [message, setMessage] = useState('');
   const [location, setLocation] = useState<GeolocationCoordinates | null>(null);
-  const [buildingStats, setBuildingStats] = useState<BuildingStats>({ entered: 0, exited: 0 });
+  const [buildingStats, setBuildingStats] = useState<BuildingStats>({ count: 0 });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
 
@@ -46,30 +45,6 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
       );
     }
   }, []);
-
-  // Fetch building stats
-  useEffect(() => {
-    const fetchBuildingStats = async () => {
-      try {
-        const response = await fetch(`/${building}/count`);
-        const data = await response.json();
-        
-        // Example: assuming the endpoint returns format like { roomA: 5, roomB: 10, ... }
-        // Calculate totals
-        const entered = Object.values(data).reduce((sum: number, count: any) => sum + count, 0);
-        setBuildingStats({ entered, exited: 0 }); // Exited data might come from another endpoint
-      } catch (error) {
-        console.error('Error fetching building stats:', error);
-        // Use placeholder data
-        setBuildingStats({ entered: Math.floor(Math.random() * 50), exited: Math.floor(Math.random() * 20) });
-      }
-    };
-
-    fetchBuildingStats();
-    // Set up polling every 30 seconds
-    const interval = setInterval(fetchBuildingStats, 30000);
-    return () => clearInterval(interval);
-  }, [building]);
 
   const handleSubmit = async () => {
     if (!message.trim()) return;
@@ -98,8 +73,10 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
 
       console.log('Fetch response status:', response.status);
       if (response.ok) {
-        const responseData = await response.json(); // Assuming backend sends JSON response
+        const responseData = await response.json();
         console.log('Emergency report submitted successfully:', responseData);
+        // Update building count from response
+        setBuildingStats({ count: responseData.building_count });
         setIsSubmitted(true);
       } else {
         // Read the response body as text first
@@ -117,7 +94,6 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
       }
     } catch (error: any) {
       console.error('Network error or other issue submitting emergency:', error);
-      // Optionally, set an error message state here to display to the user
       alert(`Network error or other issue: ${error.message}`);
     } finally {
       setIsSubmitting(false);
@@ -139,7 +115,7 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
           </CardDescription>
           <div className="flex justify-between text-sm mt-2">
             <div className="bg-blue-100 text-blue-800 px-2 py-1 rounded">
-              👥 People in building: {buildingStats.entered}
+              👥 People in building: {buildingStats.count}
             </div>
             {location && (
               <div className="bg-green-100 text-green-800 px-2 py-1 rounded">
