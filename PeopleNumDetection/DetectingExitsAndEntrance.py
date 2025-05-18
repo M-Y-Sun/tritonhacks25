@@ -1,4 +1,5 @@
 import cv2
+import numpy as np
 import make_requests
 from deep_sort_realtime.deepsort_tracker import DeepSort
 from ultralytics import YOLO
@@ -6,12 +7,14 @@ from collections import deque
 import platform
 
 # === USER CONFIGURABLE SETTINGS ===
-LINE_X = 300                    # X position of the vertical line
-ENTRANCE_SIDE = 'left'         # Options: 'left' or 'right'
-EXIT_SIDE = 'right'            # Options: 'left' or 'right'
-SPEED_THRESHOLD = 15           # Speed threshold in pixels/frame for runners
-# ==================================
+SPEED_THRESHOLD = 15               # Speed threshold in pixels/frame for runners
+FPS_FALLBACK = 30
 
+# Zones defined as polygons (clockwise points)
+BIG_ZONE = [(180, 200), (550, 200), (550, 900), (180, 900)]      # Large entry area
+SMALL_ZONE = [(325, 200), (325, 900), (350+40, 900), (350+40, 200)]  # Smaller pass-through area inside big zone
+
+# ==================================
 # Load YOLOv8 and Deep SORT
 model = YOLO('yolov8n.pt')
 tracker = DeepSort(max_age=30)
@@ -45,28 +48,38 @@ def setup_camera():
 # Open camera
 cap = setup_camera()
 
+if not cap.isOpened():
+    print("❌ Could not access webcam or video.")
+    exit()
+
 # Try to get FPS
 FPS = cap.get(cv2.CAP_PROP_FPS)
 if FPS == 0 or FPS is None:
-    FPS = 30  # fallback if camera doesn't report it
+    FPS = FPS_FALLBACK
 FPS = int(FPS)
 MIN_FRAMES_FOR_RUN = int(0.5 * FPS)
 
 # State variables
-entered_left = entered_right = 0
-exited_left = exited_right = 0
-runner_count = 0
-id_last_seen_x = {}
+entered_count = exited_count = runner_count = 0
 id_active = set()
-id_entered_side = {}
 track_history = {}
 counted_runners = set()
-requester = make_requests.Request(
-    'proto_building',
+id_status = {}         # Track status: 'outside', 'big_zone', 'small_zone', 'entered', 'exited'
+entered_ids = set()
+exited_ids = set()
+last_seen_frame = {}   # Track last seen frame number per ID
+requester = make_requests.Request (
+    'CSE',
     'B240',
-    'hallway',
-    'B240-hallway-cam'
+    'hall',
 )
+MAX_MISSING_FRAMES = 30  # Frames to assume disappeared inside big zone = entered
+
+frame_count = 0  # global frame counter
+
+def point_in_polygon(point, polygon):
+    return cv2.pointPolygonTest(np.array(polygon, np.int32), point, False) >= 0
+
 print("✅ Running real-time tracking. Press Q to quit.")
 
 while True:
@@ -75,17 +88,24 @@ while True:
         print("⚠️ Frame read failed.")
         break
 
+    frame_count += 1
+    # frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
     height, width, _ = frame.shape
-    exit_is_right = (EXIT_SIDE == 'right')
 
-    # Draw vertical reference line
-    cv2.line(frame, (LINE_X, 0), (LINE_X, height), (255, 0, 0), 2)
+    # Draw zones
+    cv2.polylines(frame, [np.array(BIG_ZONE, np.int32)], isClosed=True, color=(255, 255, 0), thickness=2)
+    cv2.putText(frame, "BIG ENTRY ZONE", (BIG_ZONE[0][0], BIG_ZONE[0][1] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 255, 0), 2)
+
+    cv2.polylines(frame, [np.array(SMALL_ZONE, np.int32)], isClosed=True, color=(0, 255, 255), thickness=2)
+    cv2.putText(frame, "SMALL CENTER ZONE", (SMALL_ZONE[0][0], SMALL_ZONE[0][1] - 10),
+                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
 
     # Detect people
     results = model(frame, verbose=False)[0]
     detections = []
     for box, conf, cls in zip(results.boxes.xywh, results.boxes.conf, results.boxes.cls):
-        if int(cls) == 0:
+        if int(cls) == 0:  # person class
             x_center, y_center, w, h = box
             x = x_center - w / 2
             y = y_center - h / 2
@@ -102,92 +122,112 @@ while True:
         track_id = str(track.track_id)
         x1, y1, x2, y2 = map(int, track.to_ltrb())
         x_center = (x1 + x2) // 2
+        y_center = (y1 + y2) // 2
+        center_point = (x_center, y_center)
         current_ids.add(track_id)
 
-        # Register new person
-        if track_id not in id_active:
-            id_active.add(track_id)
-            id_last_seen_x[track_id] = x_center
-            if x_center < LINE_X:
-                entered_left += 1
-                id_entered_side[track_id] = 'left'
-            else:
-                entered_right += 1
-                id_entered_side[track_id] = 'right'
+        # Draw bounding box and ID
+        cv2.rectangle(frame, (x1, y1), (x2, y2), (0, 255, 0), 2)
+        cv2.putText(frame, f'ID {track_id}', (x1, y1 - 10),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
 
-        id_last_seen_x[track_id] = x_center
+        # Determine position status inside zones
+        in_big_zone = point_in_polygon(center_point, BIG_ZONE)
+        in_small_zone = point_in_polygon(center_point, SMALL_ZONE)
 
-        # Track speed for runners only on exit side
-        condition = x_center > LINE_X if exit_is_right else x_center < LINE_X
-        if condition:
-            history = track_history.get(track_id, deque(maxlen=FPS))
-            history.append(x_center)
-            track_history[track_id] = history
+        prev_status = id_status.get(track_id, 'outside')
 
-            if len(history) >= MIN_FRAMES_FOR_RUN and track_id not in counted_runners:
-                dx = history[-1] - history[-MIN_FRAMES_FOR_RUN]
-                speed = abs(dx) / MIN_FRAMES_FOR_RUN
+        # Update status based on current position
+        if in_small_zone:
+            id_status[track_id] = 'small_zone'
+        elif in_big_zone:
+            id_status[track_id] = 'big_zone'
+        else:
+            id_status[track_id] = 'outside'
 
-                if ((exit_is_right and dx > 0) or (not exit_is_right and dx < 0)) and speed > SPEED_THRESHOLD:
-                    runner_count += 1
-                    counted_runners.add(track_id)
-                    print(f"🏃 Runner detected! ID {track_id}, Avg Speed: {speed:.2f}")
+        # Entry detection:
+        # From outside → big_zone → small_zone means entered building
+        if prev_status == 'outside' and id_status[track_id] == 'big_zone':
+            # person just entered big zone
+            pass  # can track if needed
+        elif (prev_status == 'big_zone' or prev_status == 'outside') and id_status[track_id] == 'small_zone':
+            # passed through center small zone → entered building
+            if track_id not in entered_ids:
+                entered_ids.add(track_id)
+                entered_count += 1
+                id_status[track_id] = 'entered'
+                print(f"🚪 ID {track_id} ENTERED the building")
 
-    # Check if people exited
+        # Exit detection:
+        # If person was inside and moved outside big zone → exited building
+        if prev_status in ['big_zone', 'small_zone', 'entered'] and id_status[track_id] == 'outside':
+            if track_id not in exited_ids:
+                exited_ids.add(track_id)
+                exited_count += 1
+                id_status[track_id] = 'exited'
+                print(f"🏃 ID {track_id} EXITED the building")
+
+        # Track last seen frame
+        last_seen_frame[track_id] = frame_count
+
+        # Track movement history for runner detection
+        history = track_history.get(track_id, deque(maxlen=FPS))
+        history.append(x_center)
+        track_history[track_id] = history
+
+        if len(history) >= MIN_FRAMES_FOR_RUN and track_id not in counted_runners:
+            dx = history[-1] - history[-MIN_FRAMES_FOR_RUN]
+            speed = abs(dx) / MIN_FRAMES_FOR_RUN
+            if speed > SPEED_THRESHOLD:
+                runner_count += 1
+                counted_runners.add(track_id)
+                print(f"🏃 Runner detected! ID {track_id}, Avg Speed: {speed:.2f}")
+
+    # Check disappeared IDs for assumed entry (inside big zone but lost)
+    disappeared_ids = [tid for tid in last_seen_frame if tid not in current_ids]
+    for tid in disappeared_ids:
+        if frame_count - last_seen_frame[tid] > MAX_MISSING_FRAMES:
+            status = id_status.get(tid, 'outside')
+            if status == 'big_zone' and tid not in entered_ids:
+                entered_ids.add(tid)
+                entered_count += 1
+                id_status[tid] = 'entered'
+                print(f"🕵️ Assumed entry (lost inside big zone): ID {tid}")
+            # Cleanup
+            last_seen_frame.pop(tid, None)
+            id_status.pop(tid, None)
+            track_history.pop(tid, None)
+            counted_runners.discard(tid)
+            id_active.discard(tid)
+
+    # Cleanup inactive IDs (ids that disappeared not yet removed)
     inactive_ids = list(id_active - current_ids)
-    for track_id in inactive_ids:
-        last_x = id_last_seen_x.get(track_id)
-        side = 'left' if last_x < LINE_X else 'right'
+    for tid in inactive_ids:
+        id_origin = None  # you may have id_origin in your original code
+        id_status.pop(tid, None)
+        track_history.pop(tid, None)
+        counted_runners.discard(tid)
+        last_seen_frame.pop(tid, None)
+        id_active.discard(tid)
 
-        if id_entered_side.get(track_id) == 'left':
-            if side == 'left':
-                exited_left += 1
-            else:
-                exited_right += 1
-        elif id_entered_side.get(track_id) == 'right':
-            if side == 'left':
-                exited_left += 1
-            else:
-                exited_right += 1
-
-        id_active.remove(track_id)
-        id_last_seen_x.pop(track_id, None)
-        id_entered_side.pop(track_id, None)
-        track_history.pop(track_id, None)
-        counted_runners.discard(track_id)
+    id_active.update(current_ids)
 
     # Overlay stats
-    cv2.putText(frame, f"Line X: {LINE_X} | Exit: {EXIT_SIDE}", (10, 20),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.5, (180, 180, 180), 1)
-    cv2.putText(frame, f"Entered Left: {entered_left}", (10, 50),
+    cv2.putText(frame, f"Entered: {entered_count}", (10, 30),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-    cv2.putText(frame, f"Entered Right: {entered_right}", (10, 80),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
-    cv2.putText(frame, f"Exited Left: {exited_left}", (10, 110),
+    cv2.putText(frame, f"Exited: {exited_count}", (10, 60),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 255), 2)
-    cv2.putText(frame, f"Exited Right: {exited_right}", (10, 140),
-                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 100, 255), 2)
-    cv2.putText(frame, f"Runners {ENTRANCE_SIDE}→{EXIT_SIDE}: {runner_count}", (10, 170),
+    cv2.putText(frame, f"Runners: {runner_count}", (10, 90),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
-<<<<<<< HEAD
     try:
-        requests.update (
-            enter_left,
-            exit_left,
-            enter_right,
-            exit_right
+        
+        requester.update(
+            entered_count,
+            exited_count        
         )
     except:
         pass
-=======
-    requester.update(
-        entered_left,
-        exited_left,
-        entered_right,
-        exited_right
-    )
->>>>>>> b2e341d16def2df773d713f52d3f24d6440ac3fc
-    # Show
+    # Show frame
     cv2.imshow("Real-Time Tracking", frame)
     if cv2.waitKey(1) & 0xFF == ord('q'):
         break

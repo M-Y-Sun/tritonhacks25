@@ -1,6 +1,6 @@
 import requests
 class Request:
-    def __init__(self, building, room_left, room_right, cam, server="http://127.0.0.1:8000"):
+    def __init__(self, building, room_left, room_right, server="http://127.0.0.1:8000"):
         self.building = building
         self.pleft = 0
         self.pright = 0
@@ -8,42 +8,33 @@ class Request:
         self.room_left = room_left
         self.room_right = room_right
         self.server = server
-        self.cam = cam
         try: 
             requests.get(f"{server}/{building}/add/{room_left}")
             requests.get(f"{server}/{building}/add/{room_right}")
+            
         except:
             pass
     def update (
         self,
-        enter_left,
-        exit_left,
-        enter_right,
-        exit_right
+        enter,
+        exits
     ):
-        pchangeleft = exit_left - enter_left - self.pleft
+        pchangeleft = exits - enter - self.pleft        
+        pchangeright = enter - exits - self.pright
+        if (pchangeleft != 0 or pchangeright != 0): print(pchangeleft,pchangeright)
+
         if (pchangeleft == 0):
             pass
         elif (pchangeleft < 0):
-            requests.get(f"{self.server}/{self.building}/exit/{self.room_left}/{-pchangeleft}")
+            requests.get(f"{self.server}/{self.building}/exit/{self.room_left}/{-pchangeleft}",timeout=1)
         else:
-            requests.get(f"{self.server}/{self.building}/enter/{self.room_left}/{pchangeleft}")
-        pchangeright = exit_right - enter_right - self.pright
+            requests.get(f"{self.server}/{self.building}/enter/{self.room_left}/{pchangeleft}",timeout=1)
+        self.pleft += pchangeleft
         if (pchangeright == 0):
             pass
         elif (pchangeright < 0):
-            requests.get(f"{self.server}/{self.building}/exit/{self.room_right}/{-pchangeright}")
+            requests.get(f"{self.server}/{self.building}/exit/{self.room_right}/{-pchangeright}",timeout=1)
         else:
-            requests.get(f"{self.server}/{self.building}/enter/{self.room_right}/{pchangeright}")
-        pchangecam = enter_left + enter_right - exit_left - exit_right - self.pcam
-        if (pchangecam == 0):
-            pass
-        elif (pchangecam < 0):
-            requests.get(f"{self.server}/{self.building}/exit/{self.cam}/{-pchangecam}")
-        else:
-            requests.get(f"{self.server}/{self.building}/enter/{self.cam}/{pchangecam}")
-        self.pleft += pchangeleft
+            requests.get(f"{self.server}/{self.building}/enter/{self.room_right}/{pchangeright}",timeout=1)
         self.pright += pchangeright
-        self.pcam += pchangecam
-
 
