@@ -1,6 +1,6 @@
 import cv2
 from fastapi import FastAPI, Request, HTTPException, UploadFile, File, WebSocket
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
@@ -12,10 +12,11 @@ import datetime
 import sys
 from DetectingExitsAndEntrance import DoorPersonTracker
 import numpy as np
+import asyncio
+from io import BytesIO
 
 # Load environment variables
 load_dotenv()
-
 
 # Add the parent directory of 'api' to the Python path
 # This is to ensure that 'dispatch' can be found
@@ -26,27 +27,21 @@ from logger import logger
 app = FastAPI()
 
 # CORS Configuration
-# Origins that are allowed to make cross-origin requests.
-# You might want to restrict this to your frontend's URL in production.
-# origins = [
-#     "http://localhost",        # For local development if frontend is served from root
-#     "http://localhost:3000",   # Common port for React dev server
-#     "http://localhost:3001",   # Another common port
-#     "http://localhost:5173",   # Common port for Vite dev server
-#     # Add other origins if necessary
-# ]
-
-
-
-tracker = DoorPersonTracker()
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost", "http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
+    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Add your frontend URL
     allow_credentials=True,
-    allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
+    allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+# Global variables for stream management
+stream_active = False
+current_message = ""
+current_university = ""
+current_building = ""
+video_capture = None
+tracker = DoorPersonTracker()
 
 # Buildings data structure
 buildings = {}
@@ -64,6 +59,14 @@ class EmergencyReport(BaseModel):
     message: str
     location: Optional[LocationData] = None
     timestamp: datetime.datetime = Field(default_factory=datetime.datetime.utcnow)
+
+class StreamSettings(BaseModel):
+    university: str
+    building: str
+    message: Optional[str] = None
+
+class MessageUpdate(BaseModel):
+    message: str
 
 @app.get("/{building}/feed", response_class=HTMLResponse)
 async def feed(building):
@@ -171,6 +174,184 @@ async def get_emergency_reports():
     """Get all emergency reports (admin only endpoint)"""
     return emergency_reports
 
+def get_frame():
+    global video_capture, tracker
+    if video_capture is None or not video_capture.isOpened():
+        return None
+        
+    success, frame = video_capture.read()
+    if not success:
+        return None
+        
+    # Process frame with tracker
+    processed_frame = tracker.process_frame(frame)
+    
+    # Draw door zones if detected
+    if tracker.door_found:
+        # Draw big zone (blue)
+        cv2.polylines(processed_frame, [np.array(tracker.BIG_ZONE, np.int32)], 
+                    True, (255, 0, 0), 2)
+        # Draw small zone (green)
+        cv2.polylines(processed_frame, [np.array(tracker.SMALL_ZONE, np.int32)], 
+                    True, (0, 255, 0), 2)
+        # Draw door box (red)
+        if tracker.fixed_door_box:
+            x1, y1, x2, y2 = tracker.fixed_door_box
+            cv2.rectangle(processed_frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+    
+    # Draw person tracking boxes and IDs
+    for track_id in tracker.id_active:
+        if track_id in tracker.last_seen_frame and \
+           tracker.frame_count - tracker.last_seen_frame[track_id] <= tracker.MAX_MISSING_FRAMES:
+            
+            # Get status color
+            status = tracker.id_status.get(track_id, 'outside')
+            if status == 'entered':
+                color = (0, 255, 0)  # Green for entered
+            elif status == 'exited':
+                color = (0, 0, 255)  # Red for exited
+            else:
+                color = (255, 255, 0)  # Yellow for tracking
+            
+            # Draw tracking history if available
+            if track_id in tracker.track_history and track_id in tracker.height_history:
+                history = list(tracker.track_history[track_id])
+                heights = list(tracker.height_history[track_id])
+                
+                # Only draw if we have both position and height data
+                min_len = min(len(history), len(heights))
+                for i in range(1, min_len):
+                    try:
+                        pt1 = (int(history[i-1]), int(heights[i-1]))
+                        pt2 = (int(history[i]), int(heights[i]))
+                        cv2.line(processed_frame, pt1, pt2, color, 2)
+                    except (IndexError, ValueError):
+                        continue
+            
+            # Draw person ID and status
+            if track_id in tracker.track_history:
+                x = int(list(tracker.track_history[track_id])[-1])
+                y = int(list(tracker.height_history[track_id])[-1]) if track_id in tracker.height_history else 30
+                label = f"ID: {track_id} ({status})"
+                cv2.putText(processed_frame, label, (x, y-10), 
+                          cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+    
+    # Add counting information
+    total_count = max(0, tracker.entered_count - tracker.exited_count)
+    cv2.putText(processed_frame, f"Total Count: {total_count}", (10, 30), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(processed_frame, f"Entered: {tracker.entered_count}", (10, 70), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+    cv2.putText(processed_frame, f"Exited: {tracker.exited_count}", (10, 110), 
+               cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    
+    # Add location information
+    cv2.putText(processed_frame, f"{current_university} - {current_building}", (10, 150), 
+                cv2.FONT_HERSHEY_SIMPLEX, 1, (255, 255, 255), 2)
+    
+    # Add emergency message if present
+    if current_message:
+        cv2.putText(processed_frame, f"Message: {current_message}", (10, 190), 
+                   cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+    
+    return processed_frame
+
+async def generate_frames():
+    while stream_active:
+        frame = get_frame()
+        if frame is None:
+            await asyncio.sleep(0.1)
+            continue
+            
+        # Encode frame as JPEG
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame_bytes = buffer.tobytes()
+        
+        # Yield frame in MJPEG format
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+        
+        await asyncio.sleep(0.1)  # Control frame rate
+
+def cleanup_stream():
+    global stream_active, video_capture, current_message, current_university, current_building
+    stream_active = False
+    if video_capture is not None:
+        video_capture.release()
+        video_capture = None
+    current_message = ""
+    current_university = ""
+    current_building = ""
+
+@app.post("/start_stream")
+async def start_stream(settings: StreamSettings):
+    global stream_active, video_capture, current_university, current_building, current_message
+    
+    try:
+        if stream_active:
+            # If stream is active but video capture is None, clean up first
+            if video_capture is None or not video_capture.isOpened():
+                cleanup_stream()
+            else:
+                raise HTTPException(status_code=400, detail="Stream already active")
+        
+        video_capture = cv2.VideoCapture(0)
+        if not video_capture.isOpened():
+            cleanup_stream()
+            raise HTTPException(status_code=500, detail="Could not open video capture")
+        
+        stream_active = True
+        current_university = settings.university
+        current_building = settings.building
+        if settings.message:
+            current_message = settings.message
+        
+        return {"status": "Stream started"}
+    except Exception as e:
+        cleanup_stream()
+        if isinstance(e, HTTPException):
+            raise e
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/stop_stream")
+async def stop_stream():
+    global stream_active, video_capture
+    
+    try:
+        cleanup_stream()
+        return {"status": "Stream stopped"}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/update_message")
+async def update_message(message_update: MessageUpdate):
+    global current_message
+    current_message = message_update.message
+    
+    # If there's an active count, include it in the Twilio message
+    if tracker is not None:
+        total_count = max(0, tracker.entered_count - tracker.exited_count)
+        full_message = f"Emergency at {current_university}, {current_building}. {message_update.message}. Current occupancy: {total_count} people."
+        
+        try:
+            twilio_call(text=full_message)
+            logger.info("Twilio call initiated with updated message and count")
+        except Exception as e:
+            logger.error(f"Error initiating Twilio call: {e}")
+            raise HTTPException(status_code=500, detail=f"Failed to initiate call: {str(e)}")
+    
+    return {"status": "Message updated"}
+
+@app.get("/video_feed")
+async def video_feed():
+    if not stream_active:
+        raise HTTPException(status_code=400, detail="Stream not active")
+    
+    return StreamingResponse(
+        generate_frames(),
+        media_type="multipart/x-mixed-replace; boundary=frame"
+    )
+
 # Mount the static files directory for serving the React frontend
 app.mount("/static", StaticFiles(directory="../frontend/public"), name="static")
 
@@ -217,10 +398,8 @@ if __name__ == "__main__":
     
     # Check if Twilio credentials are set
     if not os.getenv("TWILIO_ACCOUNT_SID") or not os.getenv("TWILIO_AUTH_TOKEN"):
-        print("ERROR: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables must be set.")
-        # logger.error("TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables must be set.")
-        # sys.exit(1) # Exit if credentials are not set
-
+        print("WARNING: TWILIO_ACCOUNT_SID and TWILIO_AUTH_TOKEN environment variables not set")
+    
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
 @app.post("/process-image/")

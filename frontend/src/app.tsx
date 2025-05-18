@@ -1,12 +1,40 @@
 import React, { useState, type FC } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import OnboardingForm from './components/OnboardingForm';
 import EmergencyChat from './components/EmergencyChat';
+import VideoFeed from './pages/VideoFeed';
 import './globals.css';
 
 interface FormData {
   school: string;
   building: string;
 }
+
+const AppContent: FC<{ formData: FormData | null; onComplete: (data: FormData) => void }> = ({ formData, onComplete }) => {
+  const location = useLocation();
+  const isVideoFeed = location.pathname === '/video-feed';
+  
+  return (
+    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
+      <div className={`w-full ${isVideoFeed ? 'max-w-4xl' : 'max-w-md'}`}>
+        <Routes>
+          <Route 
+            path="/" 
+            element={
+              !formData ? (
+                <OnboardingForm onComplete={onComplete} />
+              ) : (
+                <EmergencyChat school={formData.school} building={formData.building} />
+              )
+            } 
+          />
+          <Route path="/video-feed" element={<VideoFeed />} />
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </div>
+    </div>
+  );
+};
 
 const App: FC = () => {
   const [formData, setFormData] = useState<FormData | null>(null);
@@ -16,15 +44,9 @@ const App: FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
-      <div className="w-full max-w-md">
-        {!formData ? (
-          <OnboardingForm onComplete={handleFormComplete} />
-        ) : (
-          <EmergencyChat school={formData.school} building={formData.building} />
-        )}
-      </div>
-    </div>
+    <Router>
+      <AppContent formData={formData} onComplete={handleFormComplete} />
+    </Router>
   );
 }
 

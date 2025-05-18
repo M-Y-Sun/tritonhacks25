@@ -1,6 +1,7 @@
 import React, { useState, type FC } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
+import { Link } from 'react-router-dom';
 import {
   Card,
   CardContent,
@@ -91,6 +92,22 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
               <Button onClick={handleContinue} className="w-full">Continue</Button>
             </CardFooter>
           </Card>
+          
+          <motion.div
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.3 }}
+            className="mt-4 text-center"
+          >
+            <Link to="/video-feed" className="block">
+              <Button
+                variant="outline"
+                className="w-full"
+              >
+                Go to Video Surveillance Feed
+              </Button>
+            </Link>
+          </motion.div>
         </motion.div>
       )}
 
