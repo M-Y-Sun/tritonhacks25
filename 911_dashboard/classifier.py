@@ -13,9 +13,6 @@ def classify_emergency(text):
                        "traffic accident", "non-emergency"]
 
     # Perform multi-label classification
-    # The model will return scores for all labels, and we can decide how to interpret them.
-    # For zero-shot, typically multi_label=True means scores are independent.
-    # We will take the label with the highest score if it meets the threshold.
     result = classifier(text, candidate_labels, multi_label=True)
     
     scores = result['scores']
