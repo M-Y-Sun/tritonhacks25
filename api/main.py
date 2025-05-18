@@ -1,14 +1,49 @@
 from fastapi import FastAPI
-
+from fastapi.responses import HTMLResponse
 app = FastAPI()
 
 buildings = {}
 
 
+@app.get("/{building}/feed",response_class=HTMLResponse)
+async def feed (building):
+    return '''<!DOCTYPE html>
+<html>
+<head>
+<title>HELLO I AM HELLO</title>
+<script>
+    async function alarm () {
+        req = await fetch('alarm')
+    }
+    async function run () {
+        req = await fetch('count')
+        rooms = await req.json()
+        for (const room in rooms) {
+            document.body.insertAdjacentHTML("afterbegin", `<p>Room ${room} has ${rooms[room]} people in it</p>`)
+        }
+    }
+</script>
+</head>
+<body onload='run()'>
+    <button onclick='alarm()'>
+        Alarm authorities?
+    </button>
+</body>
+</html>
+'''
+@app.get("/{building}/alarm")
+async def show (
+    building
+):
+    if not building in buildings:
+        return {}
+    return {}
 @app.get("/{building}/count")
 async def show (
     building
 ):
+    if not building in buildings:
+        return {}
     return buildings[building]
 @app.get("/{building}/add/{room}/")
 async def add_room (
