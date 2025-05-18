@@ -10,13 +10,6 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from './ui/select';
 
 type OnboardingStep = 'welcome' | 'school' | 'building' | 'complete';
 
@@ -70,26 +63,26 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
           exit="exit"
           variants={slideVariants}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="w-full max-w-md mx-auto"
+          className="w-full max-w-2xl mx-auto"
         >
-          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-8">
             <CardHeader>
-              <CardTitle className="text-3xl font-bold text-center text-primary">Welcome</CardTitle>
-              <CardDescription className="text-center">
+              <CardTitle className="text-5xl font-bold text-center text-primary">Welcome</CardTitle>
+              <CardDescription className="text-center text-xl mt-4">
                 Campus Emergency Response System
               </CardDescription>
             </CardHeader>
-            <CardContent className="flex flex-col items-center">
-              <p className="text-center mb-4">
+            <CardContent className="flex flex-col items-center py-8">
+              <p className="text-center mb-8 text-lg max-w-xl">
                 This system will help you quickly report emergencies on campus. 
                 Our AI-powered system will dispatch the appropriate response team.
               </p>
-              <div className="h-32 w-32 rounded-full bg-primary/30 flex items-center justify-center mb-4">
-                <span className="text-5xl">🚨</span>
+              <div className="h-64 w-64 rounded-full bg-primary/30 flex items-center justify-center mb-8">
+                <span className="text-8xl">🚨</span>
               </div>
             </CardContent>
             <CardFooter className="flex justify-center">
-              <Button onClick={handleContinue} className="w-full">Continue</Button>
+              <Button onClick={handleContinue} className="w-full text-lg py-6">Continue</Button>
             </CardFooter>
           </Card>
           
@@ -97,12 +90,12 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
             initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.3 }}
-            className="mt-4 text-center"
+            className="mt-8 text-center"
           >
             <Link to="/video-feed" className="block">
               <Button
                 variant="outline"
-                className="w-full"
+                className="w-full text-lg py-6"
               >
                 Go to Video Surveillance Feed
               </Button>
@@ -119,36 +112,47 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
           exit="exit"
           variants={slideVariants}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="w-full max-w-md mx-auto"
+          className="w-full max-w-2xl mx-auto"
         >
-          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-8">
             <CardHeader>
-              <CardTitle className="text-2xl font-bold text-primary">Select Your School</CardTitle>
-              <CardDescription>
-                Please select your school from the list below
+              <CardTitle className="text-4xl font-bold text-primary">Select Your School</CardTitle>
+              <CardDescription className="text-xl mt-4">
+                Please select your school from the options below
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Select value={school} onValueChange={setSchool}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a school" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ucsd">UCSD</SelectItem>
-                  <SelectItem value="stanford">Stanford</SelectItem>
-                  <SelectItem value="cmu">CMU</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardContent>
-            <CardFooter>
+            <CardContent className="py-8 space-y-4">
               <Button 
-                onClick={handleContinue} 
-                className="w-full"
-                disabled={!school}
+                variant={school === 'ucsd' ? 'default' : 'outline'}
+                className="w-full text-lg py-6"
+                onClick={() => {
+                  setSchool('ucsd');
+                  handleContinue();
+                }}
               >
-                Continue
+                UCSD
               </Button>
-            </CardFooter>
+              <Button 
+                variant={school === 'stanford' ? 'default' : 'outline'}
+                className="w-full text-lg py-6"
+                onClick={() => {
+                  setSchool('stanford');
+                  handleContinue();
+                }}
+              >
+                Stanford
+              </Button>
+              <Button 
+                variant={school === 'cmu' ? 'default' : 'outline'}
+                className="w-full text-lg py-6"
+                onClick={() => {
+                  setSchool('cmu');
+                  handleContinue();
+                }}
+              >
+                CMU
+              </Button>
+            </CardContent>
           </Card>
         </motion.div>
       )}
@@ -161,36 +165,47 @@ const OnboardingForm: FC<OnboardingFormProps> = ({ onComplete }) => {
           exit="exit"
           variants={slideVariants}
           transition={{ duration: 0.3, ease: "easeInOut" }}
-          className="w-full max-w-md mx-auto"
+          className="w-full max-w-2xl mx-auto"
         >
-          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20">
+          <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20 p-8">
             <CardHeader>
-              <CardTitle className="text-2xl font-bold text-primary">Select Building</CardTitle>
-              <CardDescription>
+              <CardTitle className="text-4xl font-bold text-primary">Select Building</CardTitle>
+              <CardDescription className="text-xl mt-4">
                 Please select the building you are in
               </CardDescription>
             </CardHeader>
-            <CardContent>
-              <Select value={building} onValueChange={setBuilding}>
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Select a building" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="hdci">HDCI</SelectItem>
-                  <SelectItem value="cse">CSE</SelectItem>
-                  <SelectItem value="warren">Warren</SelectItem>
-                </SelectContent>
-              </Select>
-            </CardContent>
-            <CardFooter>
+            <CardContent className="py-8 space-y-4">
               <Button 
-                onClick={handleContinue} 
-                className="w-full"
-                disabled={!building}
+                variant={building === 'hdci' ? 'default' : 'outline'}
+                className="w-full text-lg py-6"
+                onClick={() => {
+                  setBuilding('hdci');
+                  handleContinue();
+                }}
               >
-                Done
+                HDCI
               </Button>
-            </CardFooter>
+              <Button 
+                variant={building === 'cse' ? 'default' : 'outline'}
+                className="w-full text-lg py-6"
+                onClick={() => {
+                  setBuilding('cse');
+                  handleContinue();
+                }}
+              >
+                CSE
+              </Button>
+              <Button 
+                variant={building === 'warren' ? 'default' : 'outline'}
+                className="w-full text-lg py-6"
+                onClick={() => {
+                  setBuilding('warren');
+                  handleContinue();
+                }}
+              >
+                Warren
+              </Button>
+            </CardContent>
           </Card>
         </motion.div>
       )}

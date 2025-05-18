@@ -16,7 +16,7 @@ const AppContent: FC<{ formData: FormData | null; onComplete: (data: FormData) =
   
   return (
     <div className="min-h-screen bg-gradient-to-b from-primary/5 via-background to-secondary/5 flex items-center justify-center p-4">
-      <div className={`w-full ${isVideoFeed ? 'max-w-4xl' : 'max-w-md'}`}>
+      <div className="w-full max-w-6xl">
         <Routes>
           <Route 
             path="/" 
