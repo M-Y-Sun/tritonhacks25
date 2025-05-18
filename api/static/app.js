@@ -1,7 +1,12 @@
+const FPS = 1;
+let websocket = null;
+let capture = null;
+let interval = null;
+
 async function getstream() {
     try {
         const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
+            video: true
         });
         console.log("Got MediaStream:", stream);
         return stream;
@@ -11,57 +16,105 @@ async function getstream() {
     }
 }
 
-/** @param {ImageBitmap} bitmap */
 async function toblob(bitmap) {
-    const ocanvas = new OffscreenCanvas(bitmap.width, bitmap.height);
-    ocanvas.getContext("bitmaprenderer").transferFromImageBitmap(bitmap);
-    return await ocanvas.convertToBlob({ type: "image/png" });
+    const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+    return await canvas.convertToBlob({ type: 'image/jpeg', quality: 0.8 });
 }
 
-const FPS = 1;
+async function setupWebSocket() {
+    // Use relative WebSocket URL that will work with any host
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const wsUrl = `${protocol}//${window.location.host}/ws`;
+    
+    websocket = new WebSocket(wsUrl);
+    
+    websocket.onopen = () => {
+        console.log('WebSocket connected');
+        startStreaming();
+    };
+    
+    websocket.onclose = () => {
+        console.log('WebSocket disconnected');
+        stopStreaming();
+        // Try to reconnect after 5 seconds
+        setTimeout(setupWebSocket, 5000);
+    };
+    
+    websocket.onerror = (error) => {
+        console.error('WebSocket error:', error);
+    };
+    
+    websocket.onmessage = (event) => {
+        try {
+            const data = JSON.parse(event.data);
+            updateUI(data);
+        } catch (error) {
+            console.error('Error parsing WebSocket message:', error);
+        }
+    };
+}
 
-const video = document.getElementById("video");
-const bstart = document.getElementById("bstart");
-const bstop = document.getElementById("bstop");
-
-let capture, interval;
-
-var xhr = new XMLHttpRequest();
-console.log("a");
-xhr.open("POST", "https://7a96-128-54-33-224.ngrok-free.app", true);
-console.log("b");
-xhr.setRequestHeader("Content-Type", "application/octet-stream");
-// xhr.setRequestHeader("Access-Control-Allow-Origin", "http://127.0.0.1:8000");
-// xhr.setRequestHeader("Access-Control-Allow-Credentials", "true");
-console.log("c");
-
-xhr.onload = () => {
-    if (xhr.readyState == 4 && xhr.status == 201) {
-        console.log(JSON.parse(xhr.responseText));
-    } else {
-        console.log(`Error: ${xhr.status}`);
+function updateUI(data) {
+    // Update any UI elements with the received data
+    if (data.numberOfPeople !== undefined) {
+        const countDisplay = document.getElementById('peopleCount');
+        if (countDisplay) {
+            countDisplay.textContent = `Number of people: ${data.numberOfPeople}`;
+        }
     }
-};
+}
 
-getstream()
-    .then((stream) => {
+function startStreaming() {
+    if (!capture || !websocket) return;
+    
+    interval = setInterval(async () => {
+        if (websocket.readyState === WebSocket.OPEN) {
+            try {
+                const bitmap = await capture.grabFrame();
+                const blob = await toblob(bitmap);
+                websocket.send(blob);
+            } catch (error) {
+                console.error('Error capturing frame:', error);
+            }
+        }
+    }, 1000 / FPS);
+}
+
+function stopStreaming() {
+    if (interval) {
+        clearInterval(interval);
+        interval = null;
+    }
+}
+
+// Initialize everything when the page loads
+document.addEventListener('DOMContentLoaded', async () => {
+    const video = document.getElementById('video');
+    const startButton = document.getElementById('bstart');
+    const stopButton = document.getElementById('bstop');
+    
+    const stream = await getstream();
+    if (stream && video) {
         video.srcObject = stream;
-        bstart.onclick = () => (video.srcObject = stream);
-        bstop.onclick = () => (video.srcObject = null);
-
         const track = stream.getVideoTracks()[0];
         capture = new ImageCapture(track);
-        console.log(capture);
-    })
-    .then(() => {
-        interval = setInterval(() => {
-            // capture.takePhoto(null).then((blob) => {
-            capture.grabFrame().then((bitmap) => {
-                console.log("bitmap: ", bitmap);
-                const blob = toblob(bitmap);
-                console.log("blob: ", blob);
-                xhr.send(blob);
-            });
-        }, 1000 / FPS);
-    })
-    .catch((err) => console.error(err));
+        
+        startButton.onclick = () => {
+            video.srcObject = stream;
+            setupWebSocket();
+        };
+        
+        stopButton.onclick = () => {
+            video.srcObject = null;
+            stopStreaming();
+            if (websocket) {
+                websocket.close();
+            }
+        };
+        
+        // Initial WebSocket setup
+        setupWebSocket();
+    }
+});

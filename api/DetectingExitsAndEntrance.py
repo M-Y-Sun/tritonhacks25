@@ -167,3 +167,101 @@ class DoorPersonTracker:
         self.id_active.update(current_ids)
 
         return frame
+
+if __name__ == "__main__":
+    # Initialize webcam
+    cap = cv2.VideoCapture(0)  # 0 is usually the built-in webcam
+    
+    if not cap.isOpened():
+        print("Error: Could not open webcam")
+        exit()
+        
+    # Initialize tracker
+    tracker = DoorPersonTracker()
+    
+    print("Starting webcam feed... Press 'q' to quit")
+    
+    try:
+        while True:
+            # Read frame from webcam
+            ret, frame = cap.read()
+            if not ret:
+                print("Error: Could not read frame")
+                break
+                
+            # Process frame and get tracks
+            processed_frame = tracker.process_frame(frame)
+            
+            # Draw door zones if detected
+            if tracker.door_found:
+                # Draw big zone (blue)
+                cv2.polylines(processed_frame, [np.array(tracker.BIG_ZONE, np.int32)], 
+                            True, (255, 0, 0), 2)
+                # Draw small zone (green)
+                cv2.polylines(processed_frame, [np.array(tracker.SMALL_ZONE, np.int32)], 
+                            True, (0, 255, 0), 2)
+                # Draw door box (red)
+                if tracker.fixed_door_box:
+                    x1, y1, x2, y2 = tracker.fixed_door_box
+                    cv2.rectangle(processed_frame, (x1, y1), (x2, y2), (0, 0, 255), 2)
+            
+            # Draw person tracking boxes and IDs
+            for track_id in tracker.id_active:
+                if track_id in tracker.last_seen_frame and \
+                   tracker.frame_count - tracker.last_seen_frame[track_id] <= tracker.MAX_MISSING_FRAMES:
+                    
+                    # Get status color
+                    status = tracker.id_status.get(track_id, 'outside')
+                    if status == 'entered':
+                        color = (0, 255, 0)  # Green for entered
+                    elif status == 'exited':
+                        color = (0, 0, 255)  # Red for exited
+                    else:
+                        color = (255, 255, 0)  # Yellow for tracking
+                    
+                    # Draw tracking history if available
+                    if track_id in tracker.track_history and track_id in tracker.height_history:
+                        history = list(tracker.track_history[track_id])
+                        heights = list(tracker.height_history[track_id])
+                        
+                        # Only draw if we have both position and height data
+                        min_len = min(len(history), len(heights))
+                        for i in range(1, min_len):
+                            try:
+                                pt1 = (int(history[i-1]), int(heights[i-1]))
+                                pt2 = (int(history[i]), int(heights[i]))
+                                cv2.line(processed_frame, pt1, pt2, color, 2)
+                            except (IndexError, ValueError):
+                                continue
+                    
+                    # Draw person ID and status
+                    if track_id in tracker.track_history:
+                        x = int(list(tracker.track_history[track_id])[-1])
+                        y = int(list(tracker.height_history[track_id])[-1]) if track_id in tracker.height_history else 30
+                        label = f"ID: {track_id} ({status})"
+                        cv2.putText(processed_frame, label, (x, y-10), 
+                                  cv2.FONT_HERSHEY_SIMPLEX, 0.5, color, 2)
+            
+            # Add counting information
+            total_count = max(0, tracker.entered_count - tracker.exited_count)
+            cv2.putText(processed_frame, f"Total Count: {total_count}", (10, 30), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(processed_frame, f"Entered: {tracker.entered_count}", (10, 70), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(processed_frame, f"Exited: {tracker.exited_count}", (10, 110), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 0, 255), 2)
+            
+            # Display frame
+            cv2.imshow('DoorPersonTracker', processed_frame)
+            
+            # Break loop on 'q' press
+            if cv2.waitKey(1) & 0xFF == ord('q'):
+                break
+                
+    except KeyboardInterrupt:
+        print("\nStopping...")
+    finally:
+        # Clean up
+        cap.release()
+        cv2.destroyAllWindows()
+        print("\nCleaned up and exited")

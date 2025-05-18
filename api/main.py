@@ -1,4 +1,5 @@
-from fastapi import FastAPI, Request, HTTPException
+import cv2
+from fastapi import FastAPI, Request, HTTPException, UploadFile, File, WebSocket
 from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,8 @@ from dotenv import load_dotenv
 import os
 import datetime
 import sys
-from DetectingExitsAndEntrance.py import DoorPersonTracker
+from DetectingExitsAndEntrance import DoorPersonTracker
+import numpy as np
 
 # Load environment variables
 load_dotenv()
@@ -26,13 +28,13 @@ app = FastAPI()
 # CORS Configuration
 # Origins that are allowed to make cross-origin requests.
 # You might want to restrict this to your frontend's URL in production.
-origins = [
-    "http://localhost",        # For local development if frontend is served from root
-    "http://localhost:3000",   # Common port for React dev server
-    "http://localhost:3001",   # Another common port
-    "http://localhost:5173",   # Common port for Vite dev server
-    # Add other origins if necessary
-]
+# origins = [
+#     "http://localhost",        # For local development if frontend is served from root
+#     "http://localhost:3000",   # Common port for React dev server
+#     "http://localhost:3001",   # Another common port
+#     "http://localhost:5173",   # Common port for Vite dev server
+#     # Add other origins if necessary
+# ]
 
 
 
@@ -40,7 +42,7 @@ tracker = DoorPersonTracker()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,
+    allow_origins=["http://localhost", "http://localhost:3000", "http://localhost:3001", "http://localhost:5173"],
     allow_credentials=True,
     allow_methods=["*"],  # Allows all methods (GET, POST, etc.)
     allow_headers=["*"],  # Allows all headers
@@ -150,7 +152,7 @@ async def submit_emergency(report: EmergencyReport):
     logger.info(f"Received emergency report: {report.model_dump_json()}")
     
     # Construct a message for Twilio. You might want to customize this further.
-    full_message = f"Emergency at {report.school}, building {report.building} with {final} people in it. Message: {report.message}"
+    full_message = f"Emergency of {final} at {report.school}, building {report.building} with {final} people in it. Message: {report.message}"
     if report.location:
         full_message += f". Location: lat {report.location.latitude}, lon {report.location.longitude}"
         
@@ -175,6 +177,38 @@ app.mount("/static", StaticFiles(directory="../frontend/public"), name="static")
 # Mount the frontend build directory as the root
 app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="frontend")
 
+# Add this new WebSocket endpoint
+@app.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await websocket.accept()
+    try:
+        while True:
+            # Receive the image as bytes
+            data = await websocket.receive_bytes()
+            
+            # Convert bytes to numpy array
+            nparr = np.frombuffer(data, np.uint8)
+            img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+            
+            # Process the frame using the existing tracker
+            tracker.process_frame(img)
+            
+            # Calculate the number of people
+            if tracker.entered_count - tracker.exited_count < 0:
+                current_count = 0
+            else:
+                current_count = tracker.entered_count - tracker.exited_count
+            
+            # Send back the count
+            await websocket.send_json({
+                "numberOfPeople": current_count
+            })
+            
+    except Exception as e:
+        print(f"WebSocket error: {e}")
+    finally:
+        await websocket.close()
+
 if __name__ == "__main__":
     import uvicorn
     # Ensure environment variables are loaded if you're using a .env file
@@ -189,8 +223,6 @@ if __name__ == "__main__":
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
 
-
-final = 0
 @app.post("/process-image/")
 async def process_image(file: UploadFile = File(...)):
     contents = await file.read()  # read bytes
