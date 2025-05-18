@@ -20,7 +20,7 @@ function VideoFeed() {
   useEffect(() => {
     return () => {
       if (isStreaming) {
-        fetch('http://localhost:8000/stop_stream', {
+        fetch('/stop_stream', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -45,7 +45,7 @@ function VideoFeed() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      const response = await fetch('http://localhost:8000/start_stream', {
+      const response = await fetch('/start_stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +76,7 @@ function VideoFeed() {
     try {
       setError('');
       
-      const response = await fetch('http://localhost:8000/stop_stream', {
+      const response = await fetch('/stop_stream', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +173,7 @@ function VideoFeed() {
               <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-primary/20">
                 <img
                   key={streamKey}
-                  src={`http://localhost:8000/video_feed?t=${streamKey}`}
+                  src={`/video_feed?t=${streamKey}`}
                   alt="Live Feed"
                   className="w-full h-full object-contain"
                 />
