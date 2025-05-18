@@ -128,11 +128,10 @@ async def building_stats(building):
     rooms = buildings[building]
     total_people = sum(rooms.values())
     
-    # For now, we're estimating exited count
-    # In a real app, you would track this from DetectingExitsAndEntrance.py
+
     return {
         "entered": total_people,
-        "exited": 0  # Placeholder for actual exit count
+        "exited": 0 
     }
 
 @app.get("/{building}/add/{room}/")
@@ -256,7 +255,7 @@ async def submit_voice_emergency(
         )
         logger.info("Twilio call with audio initiated successfully.")
         
-        # Optionally, store a record of this voice emergency if needed
+        
         # For now, just return success similar to text submission
         return {
             "status": "Voice emergency report submitted and call initiated",
@@ -264,8 +263,6 @@ async def submit_voice_emergency(
         }
     except Exception as e:
         logger.error(f"Error initiating Twilio call with audio: {e}")
-        # Potentially clean up the saved audio file if the call fails catastrophically
-        # os.remove(file_path) 
         raise HTTPException(status_code=500, detail=f"Failed to initiate call with audio: {str(e)}")
 
 @app.get("/emergency-reports")
@@ -498,8 +495,6 @@ async def process_image(file: UploadFile = File(...)):
         final = tracker.entered_count - tracker.exited_count
 
 
-    # You can return info, e.g., counts, or send back an image as bytes
-    # Here just return counts for example:
     return {
         "numberOfPeople": final
     }
@@ -545,7 +540,7 @@ app.mount("/", StaticFiles(directory="../frontend/build", html=True), name="fron
 
 if __name__ == "__main__":
     import uvicorn
-    # Ensure environment variables are loaded if you're using a .env file
+    # Ensure environment variables are loaded if using a .env file
     # from dotenv import load_dotenv
     # load_dotenv()
     
