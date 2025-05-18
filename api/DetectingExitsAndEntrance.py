@@ -135,14 +135,6 @@ class DoorPersonTracker:
                 if tid not in self.entered_ids:
                     self.entered_ids.add(tid)
                     self.entered_count += 1
-
-                    if tracker.entered_count - tracker.exited_count <0:
-                        final = 0
-                    else:
-                        final = tracker.entered_count - tracker.exited_count
-
-                    
-                
                     print(f"ENTERED: {tid}")
                     self.id_status[tid] = 'entered'
 
@@ -150,13 +142,6 @@ class DoorPersonTracker:
                 if tid not in self.exited_ids:
                     self.exited_ids.add(tid)
                     self.exited_count += 1
-                    
-                    if tracker.entered_count - tracker.exited_count <0:
-                        final = 0
-                    else:
-                        final = tracker.entered_count - tracker.exited_count
-
-                    self.requester.update(final)  # <-- update here
                     print(f"EXITED: {tid}")
                     self.id_status[tid] = 'exited'
 

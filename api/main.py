@@ -9,9 +9,11 @@ from dotenv import load_dotenv
 import os
 import datetime
 import sys
+from DetectingExitsAndEntrance.py import DoorPersonTracker
 
 # Load environment variables
 load_dotenv()
+
 
 # Add the parent directory of 'api' to the Python path
 # This is to ensure that 'dispatch' can be found
@@ -31,6 +33,10 @@ origins = [
     "http://localhost:5173",   # Common port for Vite dev server
     # Add other origins if necessary
 ]
+
+
+
+tracker = DoorPersonTracker()
 
 app.add_middleware(
     CORSMiddleware,
@@ -104,7 +110,7 @@ async def building_stats(building):
     # For now, we're estimating exited count
     # In a real app, you would track this from DetectingExitsAndEntrance.py
     return {
-        "entered": total_people,
+        "entered": final,
         "exited": 0  # Placeholder for actual exit count
     }
 
@@ -144,7 +150,7 @@ async def submit_emergency(report: EmergencyReport):
     logger.info(f"Received emergency report: {report.model_dump_json()}")
     
     # Construct a message for Twilio. You might want to customize this further.
-    full_message = f"Emergency at {report.school}, building {report.building}. Message: {report.message}"
+    full_message = f"Emergency at {report.school}, building {report.building} with {final} people in it. Message: {report.message}"
     if report.location:
         full_message += f". Location: lat {report.location.latitude}, lon {report.location.longitude}"
         
@@ -182,4 +188,31 @@ if __name__ == "__main__":
         # sys.exit(1) # Exit if credentials are not set
 
     uvicorn.run(app, host="0.0.0.0", port=8000)
+
+
+final = 0
+@app.post("/process-image/")
+async def process_image(file: UploadFile = File(...)):
+    contents = await file.read()  # read bytes
+    # Convert bytes to numpy array and decode image
+    nparr = np.frombuffer(contents, np.uint8)
+    img = cv2.imdecode(nparr, cv2.IMREAD_COLOR)
+
+
+    # Process the frame
+    tracker.process_frame(img)
+
+
+    if tracker.entered_count - tracker.exited_count <0:
+        final = 0
+    else:
+        final = tracker.entered_count - tracker.exited_count
+
+
+    # You can return info, e.g., counts, or send back an image as bytes
+    # Here just return counts for example:
+    return {
+        "numberOfPeople": final
+    }
+
 
