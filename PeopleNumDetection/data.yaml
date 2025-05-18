@@ -1,0 +1,8 @@
+path: /Users/hudsonmitchell-pullman/.cache/kagglehub/datasets/sayedmohamed1/doors-detection/versions/1  # Dataset root directory
+train: train/  # Train images relative to 'path'
+val: val/  # Val images relative to 'path'
+test: test/  # Test images relative to 'path'
+
+# Classes
+names:
+  0: door 
