@@ -10,6 +10,9 @@ import {
   CardTitle,
 } from '../components/ui/card';
 
+// Add backend URL constant
+const BACKEND_URL = 'http://localhost:8000';
+
 function VideoFeed() {
   const [university, setUniversity] = useState('');
   const [building, setBuilding] = useState('');
@@ -20,7 +23,7 @@ function VideoFeed() {
   useEffect(() => {
     return () => {
       if (isStreaming) {
-        fetch('/stop_stream', {
+        fetch(`${BACKEND_URL}/stop_stream`, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
@@ -45,7 +48,7 @@ function VideoFeed() {
         await new Promise(resolve => setTimeout(resolve, 1000));
       }
       
-      const response = await fetch('/start_stream', {
+      const response = await fetch(`${BACKEND_URL}/start_stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -76,7 +79,7 @@ function VideoFeed() {
     try {
       setError('');
       
-      const response = await fetch('/stop_stream', {
+      const response = await fetch(`${BACKEND_URL}/stop_stream`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -173,7 +176,7 @@ function VideoFeed() {
               <div className="relative aspect-video w-full overflow-hidden rounded-lg border-2 border-primary/20">
                 <img
                   key={streamKey}
-                  src={`/video_feed?t=${streamKey}`}
+                  src={`${BACKEND_URL}/video_feed?t=${streamKey}`}
                   alt="Live Feed"
                   className="w-full h-full object-contain"
                 />
