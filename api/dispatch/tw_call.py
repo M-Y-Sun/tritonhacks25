@@ -3,8 +3,6 @@ import os
 
 from twilio.rest import Client
 
-from logger import logger
-
 # Find your Account SID and Auth Token at twilio.com/console
 # and set the environment variables. See http://twil.io/secure
 account_sid = os.environ["TWILIO_ACCOUNT_SID"]
@@ -25,4 +23,4 @@ def call(text: str, caller="+15413488156", reciever="+18586884297"):
         to=reciever,
     )
 
-    logger.info("SID: " + (call.sid or "None"))
+    print("SID: " + (call.sid or "None"))
