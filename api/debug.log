@@ -1523,3 +1523,146 @@ FileNotFoundError: [Errno 2] No such file or directory: '/static/connect.html'
 2025-05-20 09:18:46,430 [INFO] Waiting for application shutdown.
 2025-05-20 09:18:46,434 [INFO] Application shutdown complete.
 2025-05-20 09:18:46,435 [INFO] Finished server process [18310]
+2025-05-20 09:42:21,298 [INFO] MobileNetV2 Embedder for Deep Sort initialised
+2025-05-20 09:42:21,298 [INFO] - gpu enabled: False
+2025-05-20 09:42:21,298 [INFO] - half precision: False
+2025-05-20 09:42:21,298 [INFO] - max batch size: 16
+2025-05-20 09:42:21,298 [INFO] - expects BGR: True
+2025-05-20 09:42:21,360 [INFO] DeepSort Tracker initialised
+2025-05-20 09:42:21,360 [INFO] - max age: 30
+2025-05-20 09:42:21,360 [INFO] - appearance threshold: 0.2
+2025-05-20 09:42:21,360 [INFO] - nms threshold: OFF
+2025-05-20 09:42:21,360 [INFO] - max num of appearance features: None
+2025-05-20 09:42:21,360 [INFO] - overriding track class : No
+2025-05-20 09:42:21,360 [INFO] - today given : No
+2025-05-20 09:42:21,360 [INFO] - in-build embedder : Yes
+2025-05-20 09:42:21,360 [INFO] - polygon detections : No
+2025-05-20 09:42:21,407 [INFO] Started server process [65539]
+2025-05-20 09:42:21,408 [INFO] Waiting for application startup.
+2025-05-20 09:42:21,408 [INFO] Application startup complete.
+2025-05-20 09:42:21,410 [INFO] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-05-20 09:42:24,319 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:24,491 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:24,680 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:24,885 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:25,088 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:25,279 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:25,485 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:25,685 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:25,890 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:26,098 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:26,290 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:26,493 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:26,697 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:26,905 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:27,101 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:27,295 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:27,493 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:27,694 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:27,894 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:28,095 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:28,294 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:28,497 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:28,698 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:28,902 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:29,102 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:29,293 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:29,483 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:29,684 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:29,893 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:30,092 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:30,287 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:30,491 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:30,696 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:30,893 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:31,097 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:31,293 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:31,493 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:31,677 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:31,881 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:32,098 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:32,300 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:32,500 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:32,683 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:32,902 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:33,091 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:33,285 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:33,496 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:33,692 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:33,883 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:34,094 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:34,298 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:34,490 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:34,692 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:34,895 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:35,099 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:35,295 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:35,495 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:35,691 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:35,894 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:36,100 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:36,290 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:36,497 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:36,691 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:36,893 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:37,080 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:37,306 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:37,499 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:37,692 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:37,884 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:38,083 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:38,291 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:38,493 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:38,686 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:38,885 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:39,086 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:39,290 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:39,489 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:39,686 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:42:41,274 [INFO] Shutting down
+2025-05-20 09:42:41,378 [INFO] Waiting for application shutdown.
+2025-05-20 09:42:41,381 [INFO] Application shutdown complete.
+2025-05-20 09:42:41,381 [INFO] Finished server process [65539]
+2025-05-20 09:43:39,207 [INFO] MobileNetV2 Embedder for Deep Sort initialised
+2025-05-20 09:43:39,207 [INFO] - gpu enabled: False
+2025-05-20 09:43:39,207 [INFO] - half precision: False
+2025-05-20 09:43:39,207 [INFO] - max batch size: 16
+2025-05-20 09:43:39,207 [INFO] - expects BGR: True
+2025-05-20 09:43:39,256 [INFO] DeepSort Tracker initialised
+2025-05-20 09:43:39,256 [INFO] - max age: 30
+2025-05-20 09:43:39,256 [INFO] - appearance threshold: 0.2
+2025-05-20 09:43:39,256 [INFO] - nms threshold: OFF
+2025-05-20 09:43:39,256 [INFO] - max num of appearance features: None
+2025-05-20 09:43:39,256 [INFO] - overriding track class : No
+2025-05-20 09:43:39,256 [INFO] - today given : No
+2025-05-20 09:43:39,256 [INFO] - in-build embedder : Yes
+2025-05-20 09:43:39,256 [INFO] - polygon detections : No
+2025-05-20 09:43:39,289 [INFO] Started server process [67999]
+2025-05-20 09:43:39,289 [INFO] Waiting for application startup.
+2025-05-20 09:43:39,289 [INFO] Application startup complete.
+2025-05-20 09:43:39,290 [INFO] Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
+2025-05-20 09:43:41,641 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:41,826 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:42,036 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:42,232 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:42,437 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:42,630 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:42,832 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:43,035 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:43,235 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:43,436 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:43,634 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:43,825 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:44,044 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:44,240 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:44,436 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:44,628 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:44,839 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:45,040 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:45,228 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:45,430 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:45,627 [INFO] Parsed URL; wrote to file `buf.png'
+2025-05-20 09:43:48,424 [INFO] Shutting down
+2025-05-20 09:43:48,527 [INFO] Waiting for application shutdown.
+2025-05-20 09:43:48,532 [INFO] Application shutdown complete.
+2025-05-20 09:43:48,533 [INFO] Finished server process [67999]
