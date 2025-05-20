@@ -1,6 +1,12 @@
+# cache
 **/.mypy_cache
 **/__pycache__
 frontend/node_modules
+
+# env files
 **/*.env
 **/.env
 **/debug.log
+
+api/dispatch/caller.txt
+api/dispatch/reciever.txt

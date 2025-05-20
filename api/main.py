@@ -17,7 +17,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from DetectingExitsAndEntrance import DoorPersonTracker
-from dispatch.tw_call import call as twilio_call
+from dispatch.tw_call import call as twilio_call_
 
 # Load environment variables
 load_dotenv()
@@ -42,6 +42,15 @@ app.add_middleware(
     allow_methods=["*"],  # Allows all methods
     allow_headers=["*"],  # Allows all headers
 )
+
+
+def twilio_call(txt: str):
+    twilio_call_(
+        txt,
+        Path("dispatch/caller.txt").read_text(),
+        Path("dispatch/reciever.txt").read_text(),
+    )
+
 
 # Global variables for stream management
 stream_active = False
@@ -192,7 +201,7 @@ async def submit_emergency(report: EmergencyReport):
             f"Number of people using the main door: {tracker.entered_count - tracker.exited_count}"
         )
         # Call the Twilio function
-        twilio_call(text=full_message)
+        twilio_call(full_message)
         logger.info("Twilio call initiated successfully.")
 
         # Store the emergency report
@@ -470,7 +479,7 @@ async def update_message(message_update: MessageUpdate):
         full_message = f"Emergency at {current_university}, {current_building}. {message_update.message}. Current occupancy: {total_count} people."
 
         try:
-            twilio_call(text=full_message)
+            twilio_call(full_message)
             logger.info("Twilio call initiated with updated message and count")
         except Exception as e:
             logger.error(f"Error initiating Twilio call: {e}")

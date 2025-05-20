@@ -10,7 +10,7 @@ auth_token = os.environ["TWILIO_AUTH_TOKEN"]
 client = Client(account_sid, auth_token)
 
 
-def call(text: str, caller="+15413488156", reciever="+18586884297"):
+def call(text: str, caller: str, reciever: str):
     twiml_str = rf"""
     <Response>
       <Say>{text}</Say>
