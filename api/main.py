@@ -10,11 +10,12 @@ import cv2
 import numpy as np
 from cv2.typing import MatLike
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import Body, FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import HTMLResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
+from requests.models import HTTPError
 
 from DetectingExitsAndEntrance import DoorPersonTracker
 from dispatch.tw_call import call as twilio_call_
@@ -570,41 +571,83 @@ async def get_talking_points():
     }
 
 
+sid_frames: dict[int, bool] = {}
+connect_sid: int = 0
+
+
 @app.get("/connect", response_class=HTMLResponse)
-async def connect_serve():
-    return Path("../frontend/public/connect.html").read_text()
+async def connect_serve() -> str:
+    global connect_sid
+
+    html = (
+        Path("../frontend/public/connect.html")
+        .read_text()
+        .replace("__SERVER_ASSIGN_SID__", str(connect_sid), 1)
+    )
+    sid_frames.update({connect_sid: False})
+    connect_sid += 1
+
+    logger.debug(sid_frames)
+
+    return html
 
 
-class DataURLResponse(BaseModel):
-    data: str
+def buffileof(sid: int) -> str:
+    return f"ds{sid}buf.png"
 
 
-frames = [MatLike]
-# i: int = 0
+class DataURLData(BaseModel):
+    sid: int
+    dataurl: str
 
 
 @app.post("/connect")
-async def connect_recv(dataurl: DataURLResponse):
-    # global i
+async def connect_recv(data: DataURLData):
+    if data.sid not in sid_frames:
+        logger.error("SID not initialized for SID " + str(data.sid))
+        raise HTTPException(500, "SID not initialized for SID " + str(data.sid))
 
-    # print("------BEGIN DATA URL------")
-    # print(dataurl.data)
-    # print("------------END------------")
+    sid_frames[data.sid] = True
 
-    response = urlopen(dataurl.data)
+    logger.debug(sid_frames)
 
-    # with open(f"test-imgs/buf{i}.png", "wb") as f:
-    with open("buf.png", "wb") as f:
+    response = urlopen(data.dataurl)
+
+    fn = buffileof(data.sid)
+    with open("buf/" + fn, "wb") as f:
         f.write(response.file.read())
 
-    # i += 1
-
-    # logger.info(f"Parsed URL; wrote to file `buf{i}.png'")
-    logger.info("Parsed URL; wrote to file `buf.png'")
+    logger.info(f"Parsed URL; wrote to file `buf/{fn}'")
 
     return {
         "status": "Connect POST request received: base64 Data URL",
+        "dataurl": data,
     }
+
+
+class SIDData(BaseModel):
+    sid: int
+
+
+@app.post("/disconnect")
+async def disconnect(data: SIDData):
+    if data.sid not in sid_frames:
+        logger.error("SID not initialized for SID " + str(data.sid))
+        raise HTTPException(500, "SID not initialized for SID " + str(data.sid))
+
+    del sid_frames[data.sid]
+
+    logger.debug(sid_frames)
+
+    fn = buffileof(data.sid)
+
+    try:
+        os.remove("buf/" + fn)
+        logger.info(f"Removed file `buf/{fn}'")
+    except FileNotFoundError:
+        logger.info(f"No file to delete: `buf/{fn}'")
+    except OSError as e:
+        logger.error(f"Failed to delete `buf/{fn}'. Error: " + str(e))
 
 
 # Mount the static files directory for serving the React frontend
