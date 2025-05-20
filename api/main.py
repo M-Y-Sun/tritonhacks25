@@ -225,6 +225,10 @@ async def get_emergency_reports():
 
 
 def get_frame():
+    """
+    Gets a frame from an open cv2 `video_capture`
+    """
+
     global video_capture, tracker
     if video_capture is None or not video_capture.isOpened():
         return None
@@ -402,6 +406,11 @@ def cleanup_stream():
 
 @app.post("/start_stream")
 async def start_stream(settings: StreamSettings):
+    """
+    POST request from React frontend server (localhost:3000/video-feed).
+    Reqeusted from VideoFeed.jsx
+    """
+
     global stream_active, current_message, current_university, current_building, video_capture, tracker
 
     # First ensure any existing stream is fully cleaned up
