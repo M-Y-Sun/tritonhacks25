@@ -558,6 +558,36 @@ async def connect_recv(dataurl: DataURLResponse):
     }
 
 
+@app.get("/get-talking-points")
+async def get_talking_points():
+    """Get talking points and current building information"""
+    # Get current count from tracker
+    current_count = (
+        max(0, tracker.entered_count - tracker.exited_count) if tracker else 0
+    )
+
+    # For demo purposes, using hardcoded location
+    # In a real app, this would come from a geocoding service
+    location_info = {
+        "address": "9500 Gilman Dr, La Jolla, CA 92093"  # Example for UCSD
+    }
+
+    # Suggested talking points
+    talking_points = [
+        "Clearly state the nature of the emergency",
+        "Specify if the situation is life-threatening",
+        "Report any injuries or immediate dangers",
+        "Describe any suspicious individuals or activities",
+        "Note any hazardous materials or conditions",
+    ]
+
+    return {
+        "location": location_info,
+        "occupancy_count": current_count,
+        "talking_points": talking_points,
+    }
+
+
 # Mount the static files directory for serving the React frontend
 app.mount("/static", StaticFiles(directory="../frontend/public"), name="static")
 

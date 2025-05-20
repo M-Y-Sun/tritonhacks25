@@ -1,5 +1,5 @@
 import React, { useState, useEffect, type FC } from 'react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Button } from './ui/button';
 import { Textarea } from './ui/textarea';
 import {
@@ -10,6 +10,7 @@ import {
   CardHeader,
   CardTitle,
 } from './ui/card';
+import { ChevronDown } from 'lucide-react';
 
 interface EmergencyChatProps {
   school: string;
@@ -25,12 +26,22 @@ interface LocationData {
   longitude: number;
 }
 
+interface TalkingPointsData {
+  location: {
+    address: string;
+  };
+  occupancy_count: number;
+  talking_points: string[];
+}
+
 const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
   const [message, setMessage] = useState('');
   const [location, setLocation] = useState<GeolocationCoordinates | null>(null);
   const [buildingStats, setBuildingStats] = useState<BuildingStats>({ count: 0 });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSubmitted, setIsSubmitted] = useState(false);
+  const [showTalkingPoints, setShowTalkingPoints] = useState(false);
+  const [talkingPointsData, setTalkingPointsData] = useState<TalkingPointsData | null>(null);
 
   // Request location access when component mounts
   useEffect(() => {
@@ -67,6 +78,22 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
     const interval = setInterval(fetchCount, 2000);
 
     return () => clearInterval(interval);
+  }, []);
+
+  const fetchTalkingPoints = async () => {
+    try {
+      const response = await fetch('http://localhost:8000/get-talking-points');
+      if (response.ok) {
+        const data = await response.json();
+        setTalkingPointsData(data);
+      }
+    } catch (error) {
+      console.error('Error fetching talking points:', error);
+    }
+  };
+
+  useEffect(() => {
+    fetchTalkingPoints();
   }, []);
 
   const handleSubmit = async () => {
@@ -124,11 +151,11 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="w-full max-w-md mx-auto"
+      className="w-full max-w-[90%] md:max-w-2xl lg:max-w-4xl mx-auto"
     >
       <Card className="bg-gradient-to-br from-primary/10 to-secondary/20 border-2 border-primary/20">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold text-primary">Emergency Report</CardTitle>
+          <CardTitle className="text-3xl font-bold text-primary">Emergency Report</CardTitle>
           <CardDescription>
             {school} - {building}
           </CardDescription>
@@ -146,6 +173,60 @@ const EmergencyChat: FC<EmergencyChatProps> = ({ school, building }) => {
         <CardContent>
           {!isSubmitted ? (
             <>
+              <div className="mb-4">
+                <Button
+                  variant="outline"
+                  onClick={() => setShowTalkingPoints(!showTalkingPoints)}
+                  className="w-full flex items-center justify-between"
+                >
+                  <span>What Should I Say?</span>
+                  <motion.div
+                    animate={{ rotate: showTalkingPoints ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ChevronDown className="h-4 w-4" />
+                  </motion.div>
+                </Button>
+
+                <AnimatePresence>
+                  {showTalkingPoints && talkingPointsData && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-4 p-4 bg-background/80 rounded-lg">
+                        <div className="mb-3">
+                          <p className="text-sm font-medium">📍 Location:</p>
+                          <p className="text-sm">{talkingPointsData.location.address}</p>
+                        </div>
+                        <div className="mb-3">
+                          <p className="text-sm font-medium">👥 Current Occupancy:</p>
+                          <p className="text-sm">{talkingPointsData.occupancy_count} people in building</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium mb-2">Key Points to Include:</p>
+                          {talkingPointsData.talking_points.map((point, index) => (
+                            <motion.div
+                              key={index}
+                              initial={{ opacity: 0, x: -20 }}
+                              animate={{ opacity: 1, x: 0 }}
+                              transition={{ delay: index * 0.1 }}
+                              className="flex items-start gap-2 mb-2"
+                            >
+                              <span className="text-primary">•</span>
+                              <span className="text-sm">{point}</span>
+                            </motion.div>
+                          ))}
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+
               <p className="mb-4">
                 Please briefly describe the emergency situation. This will be sent to an AI-powered 911 operator for dispatch.
               </p>
